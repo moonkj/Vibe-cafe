@@ -8,11 +8,11 @@ import '../../report/data/report_repository.dart';
 import '../../report/domain/report_model.dart';
 import '../../map/domain/spot_model.dart';
 
-final _statsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+final _statsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
   return ref.watch(reportRepositoryProvider).getMyStats();
 });
 
-final _myReportsProvider = FutureProvider<List<ReportModel>>((ref) async {
+final _myReportsProvider = FutureProvider.autoDispose<List<ReportModel>>((ref) async {
   return ref.watch(reportRepositoryProvider).getMyReports();
 });
 
@@ -66,12 +66,14 @@ class ProfileScreen extends ConsumerWidget {
               ),
               error: (e, _) =>
                   SliverToBoxAdapter(child: Center(child: Text(e.toString()))),
-              data: (reports) => SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, i) => _ReportListTile(report: reports[i]),
-                  childCount: reports.length,
-                ),
-              ),
+              data: (reports) => reports.isEmpty
+                  ? const SliverToBoxAdapter(child: _EmptyReports())
+                  : SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) => _ReportListTile(report: reports[i]),
+                        childCount: reports.length,
+                      ),
+                    ),
             ),
           ],
         ),
@@ -220,6 +222,45 @@ class _TrustGradeCard extends StatelessWidget {
     if (count >= 20) return (count - 20) / 30;
     if (count >= 5) return (count - 5) / 15;
     return count / 5;
+  }
+}
+
+class _EmptyReports extends StatelessWidget {
+  const _EmptyReports();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+      child: Column(
+        children: [
+          Icon(
+            Icons.graphic_eq_rounded,
+            size: 48,
+            color: AppColors.textHint,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '아직 측정 기록이 없어요',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '지도에서 스팟을 선택하고\n첫 번째 소음을 측정해 보세요!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textHint,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

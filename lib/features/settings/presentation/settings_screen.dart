@@ -116,9 +116,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: const Text('취소'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // Account deletion — call Supabase Admin or edge function
+              await ref.read(authRepositoryProvider).deleteAccount();
+              if (context.mounted) context.go('/onboarding');
             },
             child: const Text(
               '삭제',

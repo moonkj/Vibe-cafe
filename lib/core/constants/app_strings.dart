@@ -14,7 +14,6 @@ class AppStrings {
   // Onboarding
   // Onboarding — login buttons
   static const String loginWithKakao = '카카오로 로그인';
-  static const String loginWithApple = 'Apple로 로그인';
   static const String loginWithGoogle = 'Google로 로그인';
 
   // Map Filters

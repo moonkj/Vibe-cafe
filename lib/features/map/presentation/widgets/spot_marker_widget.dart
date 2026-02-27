@@ -1,4 +1,6 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/db_classifier.dart';
 import '../../domain/spot_model.dart';
@@ -14,6 +16,73 @@ class SpotMarkerWidget extends StatelessWidget {
     required this.spot,
     this.isReduced = false,
   });
+
+  /// Renders this marker programmatically as a [BitmapDescriptor] for Google Maps.
+  /// Uses [ui.PictureRecorder] — no widget tree rendering required.
+  /// Cache results by spot ID to avoid repeated rendering.
+  static Future<BitmapDescriptor> toBitmapDescriptor(
+    SpotModel spot,
+    double pixelRatio, {
+    bool isReduced = false,
+  }) async {
+    final logicalSize = isReduced ? 24.0 : 32.0;
+    final ps = logicalSize * pixelRatio; // physical size
+    final center = Offset(ps / 2, ps / 2);
+    final bw = (isReduced ? 1.5 : spot.markerBorderWidth) * pixelRatio;
+    final innerRadius = ps / 2 - bw / 2;
+    final color = DbClassifier.colorFromDb(spot.averageDb);
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    // Drop shadow
+    canvas.drawCircle(
+      center + Offset(0, pixelRatio),
+      innerRadius,
+      Paint()
+        ..color = color.withValues(alpha: 0.35)
+        ..maskFilter = ui.MaskFilter.blur(ui.BlurStyle.normal, 3 * pixelRatio),
+    );
+
+    // Filled circle
+    canvas.drawCircle(center, innerRadius, Paint()..color = color);
+
+    // White border
+    canvas.drawCircle(
+      center,
+      innerRadius,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = bw,
+    );
+
+    // dB number (individual mode only)
+    if (!isReduced) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: spot.averageDb.toStringAsFixed(0),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 9 * pixelRatio,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout();
+      tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
+    }
+
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(ps.ceil(), ps.ceil());
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(
+      byteData!.buffer.asUint8List(),
+      imagePixelRatio: pixelRatio,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -10,7 +10,17 @@
 				<string>com.noisespot.noisespot</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.51820551948-pn564r5lmr9r65en064piv3g3sr0m86h</string>
+			</array>
+		</dict>
 	</array>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>지도 서비스 품질 향상을 위해 사용됩니다. 허용하지 않아도 모든 기능을 이용할 수 있습니다.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>소음 수치(dB) 측정을 위해 마이크 접근이 필요합니다. 음성은 저장되지 않습니다.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

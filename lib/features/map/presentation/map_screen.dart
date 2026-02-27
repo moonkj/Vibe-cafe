@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/map_constants.dart';
+import '../../../core/services/places_service.dart';
+import '../../../core/utils/db_classifier.dart';
 import '../domain/spot_model.dart';
 import 'map_controller.dart';
 import 'widgets/filter_bar.dart';
@@ -21,15 +26,64 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   double _currentZoom = MapConstants.defaultZoom;
   SpotModel? _selectedSpot;
 
+  // Custom markers (async built from SpotMarkerWidget)
+  Set<Marker> _markers = {};
+  Set<Circle> _circles = {};
+  List<SpotModel> _lastBuiltSpots = const [];
+  final Map<String, BitmapDescriptor> _bitmapCache = {};
+  SpotDisplayMode _lastDisplayMode = SpotDisplayMode.hidden;
+  bool _hasMovedToUser = false;
+
+  // Map custom style JSON
+  String? _mapStyle;
+
   static const _initialCamera = CameraPosition(
     target: LatLng(MapConstants.defaultLat, MapConstants.defaultLng),
     zoom: MapConstants.defaultZoom,
   );
 
   @override
+  void initState() {
+    super.initState();
+    _loadMapStyle();
+  }
+
+  Future<void> _loadMapStyle() async {
+    final style = await rootBundle.loadString('assets/map_style.json');
+    if (mounted) setState(() => _mapStyle = style);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final mapState = ref.watch(mapControllerProvider);
     final displayMode = MapController.displayMode(_currentZoom);
+
+    // Auto-center map when user location is first resolved
+    final userPos = mapState.userPosition;
+    if (userPos != null && !_hasMovedToUser) {
+      _hasMovedToUser = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _mapController != null) {
+          _mapController!.animateCamera(
+            CameraUpdate.newLatLngZoom(
+              LatLng(userPos.latitude, userPos.longitude),
+              MapConstants.defaultZoom,
+            ),
+          );
+        }
+      });
+    }
+
+    // Rebuild markers whenever spots or zoom-mode changes
+    final currentSpots = mapState.spots;
+    if (!identical(_lastBuiltSpots, currentSpots)) {
+      _lastBuiltSpots = currentSpots;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _rebuildMarkersAsync(currentSpots, MapController.displayMode(_currentZoom));
+        }
+      });
+    }
 
     return Scaffold(
       body: Stack(
@@ -37,6 +91,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           // Google Map
           GoogleMap(
             initialCameraPosition: _initialCamera,
+            style: _mapStyle,
             myLocationEnabled: true,
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
@@ -44,9 +99,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             mapToolbarEnabled: false,
             onMapCreated: (controller) {
               _mapController = controller;
-              ref
-                  .read(mapControllerProvider.notifier)
-                  .mapController = controller;
+              ref.read(mapControllerProvider.notifier).mapController = controller;
               _moveToUserLocation();
             },
             onCameraIdle: () async {
@@ -58,16 +111,64 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             },
             onCameraMove: (pos) {
               setState(() => _currentZoom = pos.zoom);
+              final newMode = MapController.displayMode(pos.zoom);
+              if (newMode != _lastDisplayMode) {
+                _lastDisplayMode = newMode;
+                _rebuildMarkersAsync(
+                  ref.read(mapControllerProvider).spots,
+                  newMode,
+                );
+              }
             },
-            markers: displayMode == SpotDisplayMode.individual ||
-                    displayMode == SpotDisplayMode.reduced
-                ? _buildMarkers(mapState.spots, displayMode)
-                : {},
+            markers: _markers,
+            circles: _circles,
             onTap: (_) => setState(() => _selectedSpot = null),
           ),
 
+          // Empty state overlay (no spots in this area)
+          if (!mapState.isLoading &&
+              mapState.spots.isEmpty &&
+              displayMode != SpotDisplayMode.hidden)
+            Positioned(
+              bottom: _selectedSpot != null ? 228 : 94,
+              left: 40,
+              right: 40,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.shadow,
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    '이 지역에 아직 소음 기록이 없어요\n첫 번째로 측정해 보세요!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
           // Top search bar
-          _SearchBar(onSubmit: _searchSpot),
+          _SearchBar(
+            onPlaceSelected: _onPlaceSelected,
+            userLat: mapState.userPosition?.latitude,
+            userLng: mapState.userPosition?.longitude,
+          ),
 
           // Filter bar (bottom)
           Positioned(
@@ -142,31 +243,66 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  Set<Marker> _buildMarkers(
+  /// Builds markers/circles for the given [mode].
+  /// - individual/reduced: custom bitmap markers (cached by spot ID)
+  /// - heatmap: Circle overlays per spot (zoom 11~12)
+  /// - hidden: clears all
+  Future<void> _rebuildMarkersAsync(
     List<SpotModel> spots,
-    SpotDisplayMode displayMode,
-  ) {
-    return spots.map((spot) {
-      return Marker(
+    SpotDisplayMode mode,
+  ) async {
+    if (!mounted) return;
+    try {
+
+    if (mode == SpotDisplayMode.hidden) {
+      setState(() { _markers = {}; _circles = {}; });
+      return;
+    }
+
+    if (mode == SpotDisplayMode.heatmap) {
+      final newCircles = spots.map((spot) {
+        final color = DbClassifier.colorFromDb(spot.averageDb);
+        return Circle(
+          circleId: CircleId(spot.id),
+          center: LatLng(spot.lat, spot.lng),
+          radius: 250,
+          fillColor: color.withValues(alpha: 0.18),
+          strokeColor: color.withValues(alpha: 0.5),
+          strokeWidth: 1,
+        );
+      }).toSet();
+      if (mounted) setState(() { _markers = {}; _circles = newCircles; });
+      return;
+    }
+
+    // individual or reduced: bitmap markers
+    final isReduced = mode == SpotDisplayMode.reduced;
+    final pixelRatio = MediaQuery.of(context).devicePixelRatio;
+    final newMarkers = <Marker>{};
+
+    for (final spot in spots) {
+      final cacheKey = '${spot.id}_$isReduced';
+      if (!_bitmapCache.containsKey(cacheKey)) {
+        _bitmapCache[cacheKey] = await SpotMarkerWidget.toBitmapDescriptor(
+          spot,
+          pixelRatio,
+          isReduced: isReduced,
+        );
+        if (!mounted) return;
+      }
+      newMarkers.add(Marker(
         markerId: MarkerId(spot.id),
         position: LatLng(spot.lat, spot.lng),
-        onTap: () => setState(() => _selectedSpot = spot),
-        // Use custom icon — built with SpotMarkerWidget via RepaintBoundary
-        // For simplicity we use a coloured BitmapDescriptor hue
-        icon: BitmapDescriptor.defaultMarkerWithHue(
-          _dbToHue(spot.averageDb),
-        ),
+        icon: _bitmapCache[cacheKey]!,
         alpha: spot.markerOpacity,
-      );
-    }).toSet();
-  }
+        onTap: () => setState(() => _selectedSpot = spot),
+      ));
+    }
 
-  double _dbToHue(double db) {
-    if (db < 40) return BitmapDescriptor.hueGreen;
-    if (db < 55) return BitmapDescriptor.hueCyan;
-    if (db < 70) return BitmapDescriptor.hueYellow;
-    if (db < 85) return BitmapDescriptor.hueOrange;
-    return BitmapDescriptor.hueRed;
+    if (mounted) setState(() { _markers = newMarkers; _circles = {}; });
+    } catch (e, st) {
+      debugPrint('[MapScreen] _rebuildMarkersAsync error: $e\n$st');
+    }
   }
 
   void _moveToUserLocation() {
@@ -181,19 +317,80 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
-  void _searchSpot(String query) {
-    // Google Places Autocomplete — implementation uses places_api_dart or
-    // a direct REST call to Places Autocomplete endpoint.
-    // For now, shows snackbar as placeholder.
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('검색: $query')),
+  void _onPlaceSelected(LatLng position, String name) {
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(position, MapConstants.defaultZoom),
     );
+    // Trigger spot reload at new location
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_mapController == null || !mounted) return;
+      final bounds = await _mapController!.getVisibleRegion();
+      ref.read(mapControllerProvider.notifier).onCameraIdle(bounds, _currentZoom);
+    });
   }
 }
 
-class _SearchBar extends StatelessWidget {
-  final ValueChanged<String> onSubmit;
-  const _SearchBar({required this.onSubmit});
+class _SearchBar extends ConsumerStatefulWidget {
+  final void Function(LatLng position, String name) onPlaceSelected;
+  final double? userLat;
+  final double? userLng;
+
+  const _SearchBar({
+    required this.onPlaceSelected,
+    this.userLat,
+    this.userLng,
+  });
+
+  @override
+  ConsumerState<_SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends ConsumerState<_SearchBar> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  Timer? _debounce;
+  List<PlacePrediction> _suggestions = [];
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    _debounce?.cancel();
+    if (value.trim().isEmpty) {
+      setState(() => _suggestions = []);
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 350), () => _fetchSuggestions(value));
+  }
+
+  Future<void> _fetchSuggestions(String input) async {
+    final results = await ref.read(placesServiceProvider).autocomplete(
+      input,
+      lat: widget.userLat,
+      lng: widget.userLng,
+    );
+    if (mounted) setState(() => _suggestions = results);
+  }
+
+  Future<void> _selectPrediction(PlacePrediction prediction) async {
+    _controller.text = prediction.mainText;
+    _focusNode.unfocus();
+    setState(() => _suggestions = []);
+    final details = await ref.read(placesServiceProvider).getDetails(prediction.placeId);
+    if (details != null && mounted) {
+      widget.onPlaceSelected(LatLng(details.lat, details.lng), prediction.mainText);
+    }
+  }
+
+  void _clear() {
+    _controller.clear();
+    setState(() => _suggestions = []);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -201,37 +398,98 @@ class _SearchBar extends StatelessWidget {
       top: MediaQuery.of(context).padding.top + 8,
       left: 16,
       right: 16,
-      child: Container(
-        height: 48,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.shadow,
-              blurRadius: 12,
-              offset: const Offset(0, 2),
+      child: Column(
+        children: [
+          // Search bar
+          Container(
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.shadow,
+                  blurRadius: 12,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: TextField(
-          onSubmitted: onSubmit,
-          decoration: const InputDecoration(
-            hintText: '카페, 도서관, 공원 검색...',
-            hintStyle: TextStyle(
-              color: AppColors.textHint,
-              fontSize: 15,
+            child: TextField(
+              controller: _controller,
+              focusNode: _focusNode,
+              onChanged: _onChanged,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: '카페, 도서관, 공원 검색...',
+                hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 15),
+                prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textHint, size: 20),
+                suffixIcon: ListenableBuilder(
+                  listenable: _controller,
+                  builder: (context, _) => _controller.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.close_rounded, color: AppColors.textHint, size: 18),
+                          onPressed: _clear,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+              ),
             ),
-            prefixIcon: Icon(
-              Icons.search_rounded,
-              color: AppColors.textHint,
-              size: 20,
-            ),
-            border: InputBorder.none,
-            contentPadding:
-                EdgeInsets.symmetric(horizontal: 8, vertical: 14),
           ),
-        ),
+          // Autocomplete dropdown
+          if (_suggestions.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(top: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.shadow,
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              constraints: const BoxConstraints(maxHeight: 240),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: _suggestions.length,
+                  separatorBuilder: (context, _) =>
+                      const Divider(height: 1, color: AppColors.divider),
+                  itemBuilder: (_, i) {
+                    final p = _suggestions[i];
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(
+                        Icons.place_rounded,
+                        color: AppColors.mintGreen,
+                        size: 18,
+                      ),
+                      title: Text(
+                        p.mainText,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                      subtitle: p.secondaryText.isNotEmpty
+                          ? Text(
+                              p.secondaryText,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textHint,
+                              ),
+                            )
+                          : null,
+                      onTap: () => _selectPrediction(p),
+                    );
+                  },
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -315,8 +573,7 @@ class _NavItem extends StatelessWidget {
               style: TextStyle(
                 fontSize: 10,
                 color: color,
-                fontWeight:
-                    isActive ? FontWeight.w600 : FontWeight.w400,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
           ],

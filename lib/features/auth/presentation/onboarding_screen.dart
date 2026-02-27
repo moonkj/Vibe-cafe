@@ -62,14 +62,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 const Spacer(flex: 2),
                 // Wave → Spot animation
                 SizedBox(
-                  height: 72,
+                  height: 108,
                   child: AnimatedBuilder(
                     animation: _waveController,
                     builder: (context, _) => CustomPaint(
                       painter: WaveToSpotPainter(
                         progress: _waveController.value,
                       ),
-                      size: const Size(double.infinity, 72),
+                      size: const Size(double.infinity, 108),
                     ),
                   ),
                 ),
@@ -106,7 +106,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 _LoginButtons(
                   isLoading: _isLoading,
                   onKakao: _signInWithKakao,
-                  onApple: _signInWithApple,
                   onGoogle: _signInWithGoogle,
                 )
                     .animate()
@@ -133,23 +132,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     }
   }
 
-  Future<void> _signInWithApple() async {
-    setState(() => _isLoading = true);
-    try {
-      await ref.read(authRepositoryProvider).signInWithApple();
-      if (mounted) context.go('/map');
-    } catch (e) {
-      if (mounted) _showError(e.toString());
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
       await ref.read(authRepositoryProvider).signInWithGoogle();
-      if (mounted) context.go('/map');
+      // Auth completes asynchronously via deep link → authStateProvider listener
     } catch (e) {
       if (mounted) _showError(e.toString());
     } finally {
@@ -171,13 +158,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 class _LoginButtons extends StatelessWidget {
   final bool isLoading;
   final VoidCallback onKakao;
-  final VoidCallback onApple;
   final VoidCallback onGoogle;
 
   const _LoginButtons({
     required this.isLoading,
     required this.onKakao,
-    required this.onApple,
     required this.onGoogle,
   });
 
@@ -208,27 +193,6 @@ class _LoginButtons extends StatelessWidget {
             icon: const _KakaoIcon(),
             label: const Text(
               AppStrings.loginWithKakao,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        // Apple Sign In (iOS HIG: must be black or white)
-        SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: ElevatedButton.icon(
-            onPressed: onApple,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            icon: const Icon(Icons.apple, size: 20),
-            label: const Text(
-              AppStrings.loginWithApple,
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ),

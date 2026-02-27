@@ -6,11 +6,25 @@ import '../../features/map/presentation/map_screen.dart';
 import '../../features/report/presentation/report_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../services/supabase_service.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
+  final authNotifier = ValueNotifier<bool>(false);
+  ref.listen(authStateProvider, (_, _) => authNotifier.value = !authNotifier.value);
+
   return GoRouter(
     initialLocation: '/onboarding',
     debugLogDiagnostics: false,
+    refreshListenable: authNotifier,
+    redirect: (context, state) {
+      final session = ref.read(supabaseClientProvider).auth.currentSession;
+      final isLoggedIn = session != null;
+      final isOnboarding = state.matchedLocation == '/onboarding';
+
+      if (isLoggedIn && isOnboarding) return '/map';
+      if (!isLoggedIn && !isOnboarding) return '/onboarding';
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/onboarding',
