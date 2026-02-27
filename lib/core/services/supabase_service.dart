@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'secure_local_storage.dart';
 
 // Supabase credentials (same values as main.dart dart-define defaults)
 const _kSupabaseUrl = String.fromEnvironment(
@@ -18,26 +19,33 @@ class SupabaseService {
 }
 
 /// Initialises Supabase asynchronously.
-/// Uses a 10-second timeout so a hung token-refresh never blocks the app.
-/// If init fails/times out, the app still launches (user will be signed out).
+///
+/// Primary path: [SecureLocalStorage] — stores the anonymous session in iOS
+/// Keychain so the same user identity is preserved across app restarts.
+///
+/// Fallback path: [EmptyLocalStorage] — used if the primary path fails
+/// (e.g. corrupted keychain entry or network hang during token refresh).
+/// This starts a fresh session; the user will be signed in anonymously again.
 final supabaseInitProvider = FutureProvider<void>((ref) async {
   try {
     await Supabase.initialize(
       url: _kSupabaseUrl,
       anonKey: _kSupabaseAnonKey,
-      // Disable persisted session so an expired OAuth token can't cause a
-      // blocking network call during startup on iOS 26 beta.
       authOptions: const FlutterAuthClientOptions(
         authFlowType: AuthFlowType.pkce,
-        localStorage: EmptyLocalStorage(),
+        localStorage: SecureLocalStorage(),
       ),
     ).timeout(const Duration(seconds: 10));
   } catch (_) {
-    // Initialise without any stored session as a fallback
+    // Fallback: start fresh with no stored session
     try {
       await Supabase.initialize(
         url: _kSupabaseUrl,
         anonKey: _kSupabaseAnonKey,
+        authOptions: const FlutterAuthClientOptions(
+          authFlowType: AuthFlowType.pkce,
+          localStorage: EmptyLocalStorage(),
+        ),
       ).timeout(const Duration(seconds: 10));
     } catch (_) {}
   }

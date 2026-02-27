@@ -28,9 +28,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isOnboarding = state.matchedLocation == '/onboarding';
 
       if (isLoggedIn && isOnboarding) return '/map';
-      // Do NOT force unauthenticated users back to onboarding —
-      // anonymous sign-in may fail on a bad network, and we still
-      // want to show the map (reports will be skipped without a session).
+      if (!isLoggedIn && !isOnboarding) return '/onboarding';
       return null;
     },
     routes: [

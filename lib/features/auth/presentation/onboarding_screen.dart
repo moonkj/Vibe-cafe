@@ -21,7 +21,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _waveController;
   bool _navigating = false;
-  // Minimum display time so the animation is always seen
+  // Minimum display time so the animation is always seen on first launch
   bool _minTimeElapsed = false;
 
   @override
@@ -46,10 +46,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   }
 
   /// Called when both min time has elapsed AND Supabase has initialised.
+  ///
+  /// On success  → navigates to /map (router also picks up the new session).
+  /// On failure  → resets [_navigating] and auto-retries after 5 s so the
+  ///               splash never freezes regardless of network conditions.
   Future<void> _trySignIn() async {
     if (!mounted || _navigating) return;
-    // Wait for supabaseInitProvider to complete (non-blocking — it was
-    // already kicked off by the provider system, this just awaits it)
     final initAsync = ref.read(supabaseInitProvider);
     if (!initAsync.hasValue) return; // still loading — listener will retry
     _navigating = true;
@@ -58,10 +60,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           .read(authRepositoryProvider)
           .signInAnonymously()
           .timeout(const Duration(seconds: 8));
+      // Navigate on success; the router's redirect will also confirm.
+      if (mounted) context.go('/map');
     } catch (_) {
-      // Non-fatal — navigate to map even if anon auth fails
+      // Network error or timeout — allow retry.
+      if (mounted) setState(() => _navigating = false);
+      Future.delayed(const Duration(seconds: 5), _trySignIn);
     }
-    if (mounted) context.go('/map');
   }
 
   @override
