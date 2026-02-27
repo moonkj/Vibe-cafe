@@ -1,0 +1,288 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_strings.dart';
+import '../../auth/data/auth_repository.dart';
+
+class SettingsScreen extends ConsumerStatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  PermissionStatus _micStatus = PermissionStatus.denied;
+  PermissionStatus _locationStatus = PermissionStatus.denied;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermissions();
+  }
+
+  Future<void> _checkPermissions() async {
+    final mic = await Permission.microphone.status;
+    final loc = await Permission.locationWhenInUse.status;
+    setState(() {
+      _micStatus = mic;
+      _locationStatus = loc;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('설정'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => context.go('/map'),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          // Privacy notice — prominent
+          _PrivacySection(),
+          const SizedBox(height: 8),
+          // Permission section
+          _SectionHeader(title: '권한 관리'),
+          _PermissionTile(
+            icon: Icons.mic_rounded,
+            title: AppStrings.micPermission,
+            subtitle: '소음 수치(dB) 측정에만 사용됩니다',
+            status: _micStatus,
+            onManage: () async {
+              if (_micStatus.isPermanentlyDenied) {
+                await openAppSettings();
+              } else {
+                await Permission.microphone.request();
+              }
+              await _checkPermissions();
+            },
+          ),
+          _PermissionTile(
+            icon: Icons.location_on_rounded,
+            title: AppStrings.locationPermission,
+            subtitle: '주변 스팟 탐색 및 리포팅 위치 검증에 사용됩니다',
+            status: _locationStatus,
+            onManage: () async {
+              if (_locationStatus.isPermanentlyDenied) {
+                await openAppSettings();
+              } else {
+                await Permission.locationWhenInUse.request();
+              }
+              await _checkPermissions();
+            },
+          ),
+          const SizedBox(height: 8),
+          // Account section
+          _SectionHeader(title: '계정'),
+          _ActionTile(
+            icon: Icons.logout_rounded,
+            title: AppStrings.logout,
+            textColor: AppColors.textPrimary,
+            onTap: () async {
+              await ref.read(authRepositoryProvider).signOut();
+              if (context.mounted) context.go('/onboarding');
+            },
+          ),
+          _ActionTile(
+            icon: Icons.delete_outline_rounded,
+            title: AppStrings.deleteAccount,
+            textColor: AppColors.dbVeryLoud,
+            onTap: () => _confirmDeleteAccount(context),
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteAccount(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('계정 삭제'),
+        content: const Text(
+          '모든 리포트 기록이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Account deletion — call Supabase Admin or edge function
+            },
+            child: const Text(
+              '삭제',
+              style: TextStyle(color: AppColors.dbVeryLoud),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrivacySection extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.mintGreen.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.mintGreen.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.shield_rounded,
+                  size: 18, color: AppColors.mintGreen),
+              const SizedBox(width: 8),
+              Text(
+                AppStrings.privacyPolicy,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.mintGreen,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            AppStrings.privacyNoticeSettings,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '• 마이크로 측정한 음성 데이터는 기기 내 메모리에서만 처리\n'
+            '• dB 수치만 서버에 저장되며 음성 파일은 전송하지 않음\n'
+            '• 위치는 주변 스팟 탐색 목적으로만 사용',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              height: 1.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textHint,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
+
+class _PermissionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final PermissionStatus status;
+  final VoidCallback onManage;
+
+  const _PermissionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.status,
+    required this.onManage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isGranted = status == PermissionStatus.granted;
+    return ListTile(
+      leading: Icon(icon, color: AppColors.textSecondary, size: 22),
+      title: Text(title, style: Theme.of(context).textTheme.titleMedium),
+      subtitle: Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: isGranted
+                  ? AppColors.mintGreen.withValues(alpha: 0.1)
+                  : AppColors.dbVeryLoud.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              isGranted ? '허용됨' : '거부됨',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isGranted ? AppColors.mintGreen : AppColors.dbVeryLoud,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: onManage,
+            child: const Text('관리'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Color textColor;
+  final VoidCallback onTap;
+
+  const _ActionTile({
+    required this.icon,
+    required this.title,
+    required this.textColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon, color: textColor, size: 22),
+      title: Text(
+        title,
+        style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
+      ),
+      onTap: onTap,
+    );
+  }
+}

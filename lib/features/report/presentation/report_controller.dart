@@ -1,0 +1,167 @@
+import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:noise_meter/noise_meter.dart';
+import '../../../core/services/location_service.dart';
+import '../../../core/utils/noise_filter.dart';
+import '../data/report_repository.dart';
+import '../../map/domain/spot_model.dart';
+
+enum ReportPhase { measuring, stabilizing, stickerSelection, submitting, done, error }
+
+class ReportState {
+  final double currentDb;
+  final double stableDb;
+  final ReportPhase phase;
+  final StickerType? selectedSticker;
+  final String? errorMessage;
+
+  const ReportState({
+    this.currentDb = 0,
+    this.stableDb = 0,
+    this.phase = ReportPhase.measuring,
+    this.selectedSticker,
+    this.errorMessage,
+  });
+
+  ReportState copyWith({
+    double? currentDb,
+    double? stableDb,
+    ReportPhase? phase,
+    StickerType? selectedSticker,
+    String? errorMessage,
+    bool clearError = false,
+  }) {
+    return ReportState(
+      currentDb: currentDb ?? this.currentDb,
+      stableDb: stableDb ?? this.stableDb,
+      phase: phase ?? this.phase,
+      selectedSticker: selectedSticker ?? this.selectedSticker,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+    );
+  }
+}
+
+/// Riverpod 3.x Notifier for noise reporting.
+/// Call [initialize] before [startMeasurement].
+class ReportController extends Notifier<ReportState> {
+  NoiseMeter? _meter;
+  StreamSubscription<NoiseReading>? _sub;
+  Timer? _stabilizeTimer;
+  final List<double> _recentReadings = [];
+
+  String _spotId = '';
+  double? _spotLat;
+  double? _spotLng;
+
+  /// Called by ReportScreen before startMeasurement().
+  void initialize({required String spotId, double? lat, double? lng}) {
+    _spotId = spotId;
+    _spotLat = lat;
+    _spotLng = lng;
+  }
+
+  @override
+  ReportState build() {
+    ref.onDispose(_stopMeasurement);
+    return const ReportState();
+  }
+
+  /// Begin dB measurement.
+  /// Audio is processed in-memory only — never stored or transmitted.
+  void startMeasurement() {
+    if (_meter != null) return;
+    _meter = NoiseMeter();
+
+    _sub = _meter!.noise.listen(
+      (NoiseReading reading) {
+        final db = reading.meanDecibel;
+        if (!NoiseFilter.isValid(db)) return;
+
+        _recentReadings.add(db);
+        if (_recentReadings.length > 30) _recentReadings.removeAt(0);
+
+        state = state.copyWith(currentDb: db);
+
+        if (_recentReadings.length >= 10 &&
+            state.phase == ReportPhase.measuring) {
+          state = state.copyWith(phase: ReportPhase.stabilizing);
+          _startStabilizationCountdown();
+        }
+      },
+      onError: (e) {
+        state = state.copyWith(
+          phase: ReportPhase.error,
+          errorMessage: '마이크 접근 오류: $e',
+        );
+        _stopMeasurement();
+      },
+    );
+  }
+
+  void _startStabilizationCountdown() {
+    _stabilizeTimer?.cancel();
+    _stabilizeTimer = Timer(const Duration(seconds: 3), () {
+      final filtered = NoiseFilter.filterOutliers(List.from(_recentReadings));
+      if (filtered.isEmpty) return;
+
+      final stable = filtered.reduce((a, b) => a + b) / filtered.length;
+
+      // Audio stream torn down — all voice data volatilised
+      _stopMeasurement();
+
+      state = state.copyWith(
+        stableDb: stable,
+        phase: ReportPhase.stickerSelection,
+      );
+    });
+  }
+
+  void _stopMeasurement() {
+    _sub?.cancel();
+    _sub = null;
+    _meter = null; // NoiseMeter released — no audio file ever created
+    _recentReadings.clear();
+    _stabilizeTimer?.cancel();
+  }
+
+  Future<bool> verifyProximity() async {
+    if (_spotLat == null || _spotLng == null) return true;
+    try {
+      final pos = await LocationService.getCurrentPosition();
+      return LocationService.isWithinReportRadius(
+        userLat: pos.latitude,
+        userLng: pos.longitude,
+        targetLat: _spotLat!,
+        targetLng: _spotLng!,
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> submitWithSticker(StickerType sticker) async {
+    state = state.copyWith(
+      selectedSticker: sticker,
+      phase: ReportPhase.submitting,
+    );
+
+    try {
+      await ref.read(reportRepositoryProvider).submitReport(
+            spotId: _spotId,
+            measuredDb: state.stableDb,
+            sticker: sticker,
+          );
+      state = state.copyWith(phase: ReportPhase.done);
+    } catch (e) {
+      state = state.copyWith(
+        phase: ReportPhase.error,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+}
+
+final reportControllerProvider =
+    NotifierProvider<ReportController, ReportState>(
+  ReportController.new,
+);
