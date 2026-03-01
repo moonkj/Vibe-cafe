@@ -133,8 +133,9 @@ class SpotMarkerWidget extends StatelessWidget {
 class SpotInfoCard extends StatelessWidget {
   final SpotModel spot;
   final VoidCallback onReport;
+  final VoidCallback? onViewMap;
 
-  const SpotInfoCard({super.key, required this.spot, required this.onReport});
+  const SpotInfoCard({super.key, required this.spot, required this.onReport, this.onViewMap});
 
   @override
   Widget build(BuildContext context) {
@@ -222,6 +223,21 @@ class SpotInfoCard extends StatelessWidget {
               child: const Text('지금 소음 측정하기'),
             ),
           ),
+          if (onViewMap != null) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onViewMap,
+                icon: const Icon(Icons.map_outlined, size: 18),
+                label: const Text('지도에서 보기'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.mintGreen,
+                  side: const BorderSide(color: AppColors.mintGreen),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

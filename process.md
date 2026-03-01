@@ -1,6 +1,6 @@
 # Cafe Vibe — 개발 진행 현황 (Process Log)
 
-마지막 업데이트: 2026-03-01 (탐색 화면 onTap SpotInfoCard ✅, 닉네임 서버 저장 ✅, flutter analyze 0 issues ✅)
+마지막 업데이트: 2026-03-01 (GitHub Pages ✅, 탐색↔지도 연동 ✅, SpotInfoCard "지도에서 보기" ✅, IPA 빌드 🔄)
 
 ---
 
@@ -281,10 +281,10 @@ Phase 13: App Store 준비      ████░░░░░░░░  30% 🔄 (
 
 ### 🟠 Step 4: App Store 준비 (App Store Connect 설정)
 
-#### 4-A: GitHub Pages 개인정보처리방침 URL 활성화
-- GitHub repo → Settings → Pages → Source: `docs/` 폴더 선택
-- URL: `https://moonkj.github.io/Noise-Spot/docs/privacy-policy.html`
-- App Store Connect에서 이 URL 등록 필요
+#### ✅ 4-A: GitHub Pages 개인정보처리방침 URL 활성화 — 완료 (2026-03-01)
+- `gh api repos/moonkj/Noise-Spot/pages --method POST -f 'source[branch]=main' -f 'source[path]=/docs'` 실행
+- URL 활성화: `https://moonkj.github.io/Noise-Spot/` (빌드 완료까지 수 분 소요)
+- App Store Connect 등록 URL: `https://moonkj.github.io/Noise-Spot/docs/privacy-policy.html`
 
 #### 4-B: App Store Connect 앱 정보 입력
 
@@ -336,13 +336,21 @@ xcrun altool --upload-app --type ios -f build/ios/ipa/*.ipa \
 
 ### 🟡 Step 5: UX 개선 (앱 품질)
 
-#### 5-A: 탐색 화면 → 지도 연동
-- 탐색 탭에서 카페 탭 시 지도 탭으로 이동 + 해당 카페 위치 중심 이동
-- `StatefulShellRoute` 탭 전환 + `MapController.moveTo(lat, lng)` 연동
+#### ✅ 5-A: 탐색 화면 → 지도 연동 — 완료 (2026-03-01)
+- `MapFocusNotifier` + `mapFocusProvider` 추가 (`map_controller.dart`)
+  - `NotifierProvider<MapFocusNotifier, LatLng?>` 패턴 사용 (StateProvider 제거됨)
+  - `focus(LatLng)` / `clear()` 메서드
+- `map_screen.dart`: `ref.listen(mapFocusProvider)` → `animateCamera(zoom: 16)` → `clear()`
+- `spot_marker_widget.dart`: `SpotInfoCard`에 `onViewMap?` 옵션 콜백 추가
+  - 탐색 탭에서만 `OutlinedButton("지도에서 보기")` 표시
+- `explore_screen.dart`: 카페 상세 바텀시트에 Consumer로 ref 접근
+  - `onViewMap: () { ref.read(mapFocusProvider.notifier).focus(LatLng(spot.lat, spot.lng)); context.go('/map'); }`
+- `google_maps_flutter` import 추가 (`explore_screen.dart`)
 
-#### 5-B: 리포트 완료 후 탐색 화면 새로고침
-- 리포트 제출 성공 후 `ref.invalidate(_nearbySpotsProvider)` 호출
-- 새로 측정한 카페가 탐색 목록에 즉시 반영
+#### ✅ 5-B: 리포트 완료 후 탐색 화면 새로고침 — 자동 처리 확인 (2026-03-01)
+- `ShellRoute` (StatefulShellRoute 아님) → 탭 전환 시 child 위젯 재빌드
+- `/report` push → pop 시 `ExploreScreen` 재생성 → `_nearbySpotsProvider.autoDispose` 자동 재조회
+- 별도 invalidate 불필요
 
 #### 5-C: 온보딩 닉네임 설정
 - 최초 실행 시 닉네임 입력 화면 추가 (선택 사항, 건너뛰기 가능)

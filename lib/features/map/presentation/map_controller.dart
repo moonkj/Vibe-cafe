@@ -170,3 +170,17 @@ class MapController extends Notifier<MapState> {
 final mapControllerProvider = NotifierProvider<MapController, MapState>(
   MapController.new,
 );
+
+/// 탐색 탭에서 "지도에서 보기" 시 카메라 이동 대상.
+/// MapScreen이 소비 후 clear() 호출.
+class MapFocusNotifier extends Notifier<LatLng?> {
+  @override
+  LatLng? build() => null;
+
+  void focus(LatLng latlng) => state = latlng;
+  void clear() => state = null;
+}
+
+final mapFocusProvider = NotifierProvider<MapFocusNotifier, LatLng?>(
+  MapFocusNotifier.new,
+);

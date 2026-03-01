@@ -65,6 +65,19 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final mapState = ref.watch(mapControllerProvider);
     final displayMode = MapController.displayMode(_currentZoom);
 
+    // 탐색 탭에서 "지도에서 보기" 요청 처리
+    ref.listen(mapFocusProvider, (prev, focus) {
+      if (focus == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _mapController != null) {
+          _mapController!.animateCamera(
+            CameraUpdate.newLatLngZoom(focus, 16),
+          );
+        }
+      });
+      ref.read(mapFocusProvider.notifier).clear();
+    });
+
     // Auto-center map when user location is first resolved
     final userPos = mapState.userPosition;
     if (userPos != null && !_hasMovedToUser) {
