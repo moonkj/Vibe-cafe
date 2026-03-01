@@ -6,6 +6,7 @@ import '../../../core/constants/app_strings.dart';
 import '../../../core/services/location_service.dart';
 import '../../../features/map/data/spots_repository.dart';
 import '../../../features/map/domain/spot_model.dart';
+import '../../../features/map/presentation/widgets/spot_marker_widget.dart';
 
 // ──────────────────────────────────────────────────────────────
 // Provider: 내 주변 3km 카페 목록 (자동 탐색)
@@ -366,11 +367,25 @@ class _CafeListTile extends StatelessWidget {
             ),
           ],
         ),
-        trailing: spot.reportCount > 0
-            ? Icon(Icons.chevron_right, color: Colors.grey.shade300)
-            : null,
+        trailing: Icon(Icons.chevron_right, color: Colors.grey.shade300),
         onTap: () {
-          // 상세화면은 추후 구현
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: Colors.transparent,
+            isScrollControlled: true,
+            builder: (_) => Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: SpotInfoCard(
+                spot: spot,
+                onReport: () {
+                  Navigator.pop(context);
+                  context.push(
+                    '/report?spotId=${spot.id}&spotName=${Uri.encodeComponent(spot.name)}',
+                  );
+                },
+              ),
+            ),
+          );
         },
       ),
     );

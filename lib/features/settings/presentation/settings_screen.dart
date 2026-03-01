@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/nickname_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../auth/data/auth_repository.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -256,6 +257,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  Future<void> _saveNickname(String newNick) async {
+    ref.read(nicknameProvider.notifier).set(newNick);
+    final userId = ref.read(supabaseClientProvider).auth.currentUser?.id;
+    if (userId != null) {
+      try {
+        await ref.read(supabaseClientProvider).rpc('upsert_user_profile', params: {
+          'p_user_id': userId,
+          'p_nickname': newNick,
+        });
+      } catch (_) {}
+    }
+  }
+
   void _editNickname(BuildContext context, String? current) {
     final controller = TextEditingController(text: current ?? '');
     showDialog(
@@ -271,10 +285,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             counterText: '',
           ),
           onSubmitted: (_) {
-            if (controller.text.trim().isNotEmpty) {
-              ref.read(nicknameProvider.notifier).set(controller.text.trim());
-            }
+            final nick = controller.text.trim();
             Navigator.pop(dialogCtx);
+            if (nick.isNotEmpty) _saveNickname(nick);
           },
         ),
         actions: [
@@ -284,10 +297,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           TextButton(
             onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                ref.read(nicknameProvider.notifier).set(controller.text.trim());
-              }
+              final nick = controller.text.trim();
               Navigator.pop(dialogCtx);
+              if (nick.isNotEmpty) _saveNickname(nick);
             },
             child: const Text('저장', style: TextStyle(color: AppColors.mintGreen)),
           ),
