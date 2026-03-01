@@ -1,6 +1,6 @@
 # Cafe Vibe — 개발 진행 현황 (Process Log)
 
-마지막 업데이트: 2026-03-01 (랭킹 버그 수정 ✅ — RPC 제거·직접 쿼리, autoDispose 제거, 프로필 실데이터 연동)
+마지막 업데이트: 2026-03-01 (migration 002 Supabase 적용 ✅ — user_stats/user_profiles 테이블 생성, RPC 함수 배포, 백필 완료)
 
 ---
 
@@ -14,7 +14,7 @@ Phase 4: Map Feature          ████████████ 100% ✅
 Phase 5: Report Feature       ████████████ 100% ✅
 Phase 6: Profile Feature      ████████████ 100% ✅ (레벨/포인트/뱃지 시스템 추가)
 Phase 7: Settings Feature     ████████████ 100% ✅ (전면 재설계 완료)
-Phase 8: DB 마이그레이션      █████████░░░  80% 🔄 (002 작성완료, Supabase 미적용)
+Phase 8: DB 마이그레이션      ████████████ 100% ✅ (001+002 Supabase 적용완료, 백필완료)
 Phase 9: 테스트               ████████████ 100% ✅ (71/71 통과)
 Phase 10: 실제 API 연동       ████████████ 100% ✅
 Phase 11: 앱 아이콘 & 빌드    ████████████ 100% ✅
