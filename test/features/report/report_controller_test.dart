@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_spot/features/report/presentation/report_controller.dart';
-import 'package:noise_spot/features/map/domain/spot_model.dart';
+import 'package:cafe_vibe/features/report/presentation/report_controller.dart';
+import 'package:cafe_vibe/features/map/domain/spot_model.dart';
 
 void main() {
   group('ReportState — 기본값 및 copyWith', () {

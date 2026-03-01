@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_strings.dart';
 import '../../../core/services/nickname_service.dart';
-import '../../../core/utils/db_classifier.dart';
+import '../../../core/utils/level_service.dart';
+import '../../map/domain/spot_model.dart';
 import '../../report/data/report_repository.dart';
 import '../../report/domain/report_model.dart';
-import '../../map/domain/spot_model.dart';
 
-final _statsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+final _myStatsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
   return ref.watch(reportRepositoryProvider).getMyStats();
 });
 
-final _myReportsProvider = FutureProvider.autoDispose<List<ReportModel>>((ref) async {
+final _myReportsProvider = FutureProvider.autoDispose<List<ReportModel>>((ref) {
   return ref.watch(reportRepositoryProvider).getMyReports();
 });
 
@@ -22,155 +21,318 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final statsAsync = ref.watch(_statsProvider);
+    final statsAsync = ref.watch(_myStatsProvider);
     final reportsAsync = ref.watch(_myReportsProvider);
     final nickname = ref.watch(nicknameProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('마이페이지'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => context.go('/map'),
-        ),
-      ),
+      backgroundColor: const Color(0xFFF8F6F1),
       body: statsAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator(color: AppColors.mintGreen)),
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: AppColors.mintGreen),
+        ),
         error: (e, _) => Center(child: Text(e.toString())),
-        data: (stats) => CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Profile header
-                    _ProfileHeader(
-                      nickname: nickname,
-                      totalReports: stats['total'] as int? ?? 0,
-                      onEditTap: () => context.go('/settings'),
-                    ),
-                    const SizedBox(height: 24),
-                    // Stats cards
-                    _StatsRow(stats: stats),
-                    const SizedBox(height: 24),
-                    // Trust grade
-                    _TrustGradeCard(totalReports: stats['total'] as int),
-                    const SizedBox(height: 24),
-                    Text(
-                      '측정 기록',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+        data: (stats) {
+          final total = stats['total'] as int? ?? 0;
+          final totalCafes = stats['total_cafes'] as int? ?? 0;
+          final hasQuietCafe = stats['has_quiet_cafe'] as bool? ?? false;
+          final level = LevelService.calcLevel(total);
+          final points = LevelService.calcPoints(total, totalCafes);
+          final badges = LevelService.calcBadges(
+            totalReports: total,
+            totalCafes: totalCafes,
+            hasQuietCafe: hasQuietCafe,
+          );
+
+          return CustomScrollView(
+            slivers: [
+              // ── AppBar ──
+              SliverAppBar(
+                backgroundColor: Colors.white,
+                floating: true,
+                pinned: false,
+                automaticallyImplyLeading: false,
+                elevation: 0,
+                title: const Text(
+                  '프로필',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined, color: Color(0xFF888888)),
+                    onPressed: () => context.go('/settings'),
+                  ),
+                ],
+              ),
+
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
+                      _ProfileHeader(nickname: nickname, level: level),
+                      const SizedBox(height: 12),
+                      _LevelCard(level: level),
+                      const SizedBox(height: 12),
+                      _StatsRow(total: total, totalCafes: totalCafes, points: points),
+                      const SizedBox(height: 16),
+                      _BadgeSection(badges: badges),
+                      const SizedBox(height: 20),
+                      const Text(
+                        '내 측정 기록',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ── Report list ──
+              reportsAsync.when(
+                loading: () => const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(child: CircularProgressIndicator(color: AppColors.mintGreen)),
+                  ),
+                ),
+                error: (e, _) =>
+                    SliverToBoxAdapter(child: Center(child: Text(e.toString()))),
+                data: (reports) => reports.isEmpty
+                    ? const SliverToBoxAdapter(child: _EmptyReports())
+                    : SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (ctx, i) => _ReportTile(report: reports[i]),
+                          childCount: reports.length,
+                        ),
+                      ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 40)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// Profile header card
+// ──────────────────────────────────────────────────────────────
+class _ProfileHeader extends StatelessWidget {
+  final String? nickname;
+  final UserLevel level;
+
+  const _ProfileHeader({required this.nickname, required this.level});
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = (nickname != null && nickname!.isNotEmpty) ? nickname! : '익명 사용자';
+    final initial = displayName.substring(0, 1).toUpperCase();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: AppColors.brandGradient,
+            ),
+            child: Center(
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
                 ),
               ),
             ),
-            // Report list
-            reportsAsync.when(
-              loading: () => const SliverToBoxAdapter(
-                child: Center(child: CircularProgressIndicator(color: AppColors.mintGreen)),
-              ),
-              error: (e, _) =>
-                  SliverToBoxAdapter(child: Center(child: Text(e.toString()))),
-              data: (reports) => reports.isEmpty
-                  ? const SliverToBoxAdapter(child: _EmptyReports())
-                  : SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, i) => _ReportListTile(report: reports[i]),
-                        childCount: reports.length,
-                      ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.mintGreen.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Lv.${level.level} ${level.name}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.mintGreen,
                     ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _ProfileHeader extends StatelessWidget {
-  final String? nickname;
-  final int totalReports;
-  final VoidCallback onEditTap;
+// ──────────────────────────────────────────────────────────────
+// Level progress card
+// ──────────────────────────────────────────────────────────────
+class _LevelCard extends StatelessWidget {
+  final UserLevel level;
+  const _LevelCard({required this.level});
 
-  const _ProfileHeader({
-    required this.nickname,
-    required this.totalReports,
-    required this.onEditTap,
-  });
+  static const _levelEmojis = ['☕', '🎧', '🏆', '⭐', '👑'];
 
   @override
   Widget build(BuildContext context) {
-    final hasName = nickname != null && nickname!.isNotEmpty;
-    return Row(
-      children: [
-        Container(
-          width: 60,
-          height: 60,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: AppColors.bgGradient,
+    final emoji = _levelEmojis[(level.level - 1).clamp(0, 4)];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-          child: const Icon(Icons.person_rounded, color: Colors.white, size: 30),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Text(
-                hasName ? nickname! : '익명 사용자',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: hasName
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
+              Text(emoji, style: const TextStyle(fontSize: 24)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Lv.${level.level} ${level.name}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1A1A1A),
+                      ),
                     ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                hasName ? '측정 $totalReports회' : '설정에서 이름을 정해보세요',
-                style: Theme.of(context).textTheme.bodyMedium,
+                    Text(
+                      level.isMax
+                          ? '최고 레벨 달성!'
+                          : '다음 레벨까지 ${level.nextTarget - level.current}회',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.edit_rounded, size: 18, color: AppColors.textHint),
-          onPressed: onEditTap,
-          tooltip: '설정',
-        ),
-      ],
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: level.progress,
+              color: AppColors.mintGreen,
+              backgroundColor: AppColors.mintGreen.withValues(alpha: 0.12),
+              minHeight: 8,
+            ),
+          ),
+          if (!level.isMax) ...[
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${level.current}회',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                ),
+                Text(
+                  '${level.nextTarget}회',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
 
+// ──────────────────────────────────────────────────────────────
+// Stats row (2 cards)
+// ──────────────────────────────────────────────────────────────
 class _StatsRow extends StatelessWidget {
-  final Map<String, dynamic> stats;
-  const _StatsRow({required this.stats});
+  final int total;
+  final int totalCafes;
+  final int points;
+
+  const _StatsRow({required this.total, required this.totalCafes, required this.points});
 
   @override
   Widget build(BuildContext context) {
-    final total = stats['total'] as int? ?? 0;
-    final avgDb = (stats['avg_db'] as num? ?? 0).toDouble();
-
     return Row(
       children: [
         _StatCard(
-          label: AppStrings.totalReports,
+          label: '총 측정',
           value: '$total회',
           icon: Icons.bar_chart_rounded,
           color: AppColors.mintGreen,
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         _StatCard(
-          label: AppStrings.avgDb,
-          value: '${avgDb.toStringAsFixed(1)} dB',
-          icon: Icons.graphic_eq_rounded,
-          color: DbClassifier.colorFromDb(avgDb),
+          label: '등록 카페',
+          value: '$totalCafes곳',
+          icon: Icons.coffee_rounded,
+          color: const Color(0xFFFF8C69),
+        ),
+        const SizedBox(width: 8),
+        _StatCard(
+          label: '획득 포인트',
+          value: '${points}P',
+          icon: Icons.stars_rounded,
+          color: AppColors.skyBlue,
         ),
       ],
     );
@@ -196,9 +358,15 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,148 +376,157 @@ class _StatCard extends StatelessWidget {
             Text(
               value,
               style: TextStyle(
-                fontSize: 22,
+                fontSize: 18,
                 fontWeight: FontWeight.w700,
                 color: color,
               ),
             ),
-            Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TrustGradeCard extends StatelessWidget {
-  final int totalReports;
-  const _TrustGradeCard({required this.totalReports});
-
-  @override
-  Widget build(BuildContext context) {
-    final (grade, color, next, nextCount) = _gradeInfo(totalReports);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color.withValues(alpha: 0.1), Colors.white],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.workspace_premium_rounded, color: color),
-              const SizedBox(width: 8),
-              Text(
-                grade,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-          if (next != null) ...[
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              value: _progress(totalReports),
-              color: color,
-              backgroundColor: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(4),
-              minHeight: 6,
-            ),
-            const SizedBox(height: 6),
             Text(
-              '$next 달성까지 ${nextCount! - totalReports}회 남았어요',
-              style: Theme.of(context).textTheme.bodyMedium,
+              label,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  (String grade, Color color, String? next, int? nextCount) _gradeInfo(
-      int count) {
-    if (count >= 50) return ('Gold', AppColors.trustGold, null, null);
-    if (count >= 20) return ('Silver', AppColors.trustSilver, 'Gold', 50);
-    if (count >= 5) return ('Bronze', AppColors.trustBronze, 'Silver', 20);
-    return ('Member', AppColors.textHint, 'Bronze', 5);
-  }
-
-  double _progress(int count) {
-    if (count >= 50) return 1.0;
-    if (count >= 20) return (count - 20) / 30;
-    if (count >= 5) return (count - 5) / 15;
-    return count / 5;
-  }
-}
-
-class _EmptyReports extends StatelessWidget {
-  const _EmptyReports();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
-      child: Column(
-        children: [
-          Icon(
-            Icons.graphic_eq_rounded,
-            size: 48,
-            color: AppColors.textHint,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            '아직 측정 기록이 없어요',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '지도에서 스팟을 선택하고\n첫 번째 소음을 측정해 보세요!',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textHint,
-              height: 1.5,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _ReportListTile extends StatelessWidget {
-  final ReportModel report;
-  const _ReportListTile({required this.report});
+// ──────────────────────────────────────────────────────────────
+// Badge section
+// ──────────────────────────────────────────────────────────────
+class _BadgeSection extends StatelessWidget {
+  final List<BadgeInfo> badges;
+  const _BadgeSection({required this.badges});
 
   @override
   Widget build(BuildContext context) {
-    final color = DbClassifier.colorFromDb(report.measuredDb);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '획득 뱃지',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1A1A1A),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 92,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: badges.length,
+            separatorBuilder: (ctx, i) => const SizedBox(width: 8),
+            itemBuilder: (ctx, i) => _BadgeTile(badge: badges[i]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BadgeTile extends StatelessWidget {
+  final BadgeInfo badge;
+  const _BadgeTile({required this.badge});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      width: 80,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: badge.unlocked ? Colors.white : const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: badge.unlocked
+              ? AppColors.mintGreen.withValues(alpha: 0.3)
+              : Colors.grey.shade200,
+        ),
+        boxShadow: badge.unlocked
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            badge.unlocked ? badge.emoji : '🔒',
+            style: const TextStyle(fontSize: 24),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            badge.label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: badge.unlocked ? const Color(0xFF1A1A1A) : Colors.grey.shade400,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// Report tile
+// ──────────────────────────────────────────────────────────────
+class _ReportTile extends StatelessWidget {
+  final ReportModel report;
+  const _ReportTile({required this.report});
+
+  @override
+  Widget build(BuildContext context) {
+    final dbColor = AppColors.dbColor(report.measuredDb);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Text(
-            report.selectedSticker.emoji,
-            style: const TextStyle(fontSize: 24),
+          // dB badge
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: dbColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  report.measuredDb.toStringAsFixed(0),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: dbColor,
+                  ),
+                ),
+                Text('dB', style: TextStyle(fontSize: 9, color: dbColor)),
+              ],
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -357,30 +534,41 @@ class _ReportListTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  report.selectedSticker.label,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  report.spotName ?? '알 수 없는 카페',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                Text(
-                  _formatDate(report.createdAt),
-                  style: Theme.of(context).textTheme.bodyMedium,
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: dbColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        report.selectedSticker.label,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: dbColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _timeAgo(report.createdAt),
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              '${report.measuredDb.toStringAsFixed(1)} dB',
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
             ),
           ),
         ],
@@ -388,7 +576,44 @@ class _ReportListTile extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime dt) {
-    return '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}';
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inDays >= 1) return '${diff.inDays}일 전';
+    if (diff.inHours >= 1) return '${diff.inHours}시간 전';
+    if (diff.inMinutes >= 1) return '${diff.inMinutes}분 전';
+    return '방금 전';
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// Empty state
+// ──────────────────────────────────────────────────────────────
+class _EmptyReports extends StatelessWidget {
+  const _EmptyReports();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Column(
+        children: [
+          Icon(Icons.graphic_eq_rounded, size: 56, color: Colors.grey.shade200),
+          const SizedBox(height: 16),
+          Text(
+            '아직 측정 기록이 없어요',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '첫 번째 카페 소음을 측정해 보세요!',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+          ),
+        ],
+      ),
+    );
   }
 }

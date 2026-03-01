@@ -1,6 +1,6 @@
-# Noise Spot — 개발 진행 현황 (Process Log)
+# Cafe Vibe — 개발 진행 현황 (Process Log)
 
-마지막 업데이트: 2026-02-27 (브랜드 카페 선표시 ✅, 검색→측정 UX 개선 ✅, JSON 시드 인프라 ✅)
+마지막 업데이트: 2026-03-01 (랭킹 버그 수정 ✅ — RPC 제거·직접 쿼리, autoDispose 제거, 프로필 실데이터 연동)
 
 ---
 
@@ -12,13 +12,17 @@ Phase 2: Core 레이어         ████████████ 100% ✅
 Phase 3: Auth Feature         ████████████ 100% ✅
 Phase 4: Map Feature          ████████████ 100% ✅
 Phase 5: Report Feature       ████████████ 100% ✅
-Phase 6: Profile Feature      ████████████ 100% ✅
-Phase 7: Settings Feature     ████████████ 100% ✅
-Phase 8: DB 마이그레이션      ████████████ 100% ✅
+Phase 6: Profile Feature      ████████████ 100% ✅ (레벨/포인트/뱃지 시스템 추가)
+Phase 7: Settings Feature     ████████████ 100% ✅ (전면 재설계 완료)
+Phase 8: DB 마이그레이션      █████████░░░  80% 🔄 (002 작성완료, Supabase 미적용)
 Phase 9: 테스트               ████████████ 100% ✅ (71/71 통과)
 Phase 10: 실제 API 연동       ████████████ 100% ✅
 Phase 11: 앱 아이콘 & 빌드    ████████████ 100% ✅
-Phase 12: UI 폴리시           ████████████ 100% ✅ (마커버그수정 ✅, lint 0 ✅, 검색은 MVP이후)
+Phase 12: UI 폴리시           ████████████ 100% ✅ (마커버그수정 ✅, lint 0 ✅)
+Phase 14: UI 전면 개편         ████████████ 100% ✅ (4탭 네비, 탐색/랭킹 신규, 프로필/설정 재설계)
+Phase 15: 버그 수정 & 안정화   ████████████ 100% ✅ (랭킹 영구로딩 수정, 프로필 실데이터, crash 방지)
+Phase 13: App Store 준비      ████░░░░░░░░  30% 🔄 (privacy-policy ✅, IPA빌드 ✅, TestFlight ⏳)
+아키텍처: 익명인증 전환        ████████████ 100% ✅ (SecureLocalStorage ✅, 닉네임 ✅, 버그수정 ✅)
 ```
 
 ---
@@ -26,7 +30,7 @@ Phase 12: UI 폴리시           ████████████ 100% ✅ (
 ## ✅ 완료된 작업
 
 ### Phase 1: 프로젝트 초기화
-- [x] `flutter create noise_spot --org com.noisespot --platforms ios` 실행
+- [x] `flutter create cafe_vibe --org com.cafevibe --platforms ios` 실행
 - [x] `pubspec.yaml` 전체 의존성 설정 (버전 충돌 해결 포함)
   - noise_meter: 6.x → **5.1.0** 수정 (pub.dev 최신)
   - permission_handler: 11.x → **12.0.0** 수정 (noise_meter 요구)
@@ -37,7 +41,7 @@ Phase 12: UI 폴리시           ████████████ 100% ✅ (
   - `NSMicrophoneUsageDescription`
   - `NSLocationWhenInUseUsageDescription`
   - `NSLocationAlwaysAndWhenInUseUsageDescription`
-  - `CFBundleURLTypes` — URL Scheme `com.noisespot.noisespot` (Supabase OAuth 딥링크)
+  - `CFBundleURLTypes` — URL Scheme `com.cafevibe.cafevibe` (Supabase OAuth 딥링크)
 
 ### Phase 2: Core 레이어
 
@@ -69,19 +73,19 @@ Phase 12: UI 폴리시           ████████████ 100% ✅ (
 - [x] `calibration_service.dart` — 최초 실행 3초 샘플링 → mic_offset SharedPreferences 저장
 
 ### Phase 3: Auth Feature
-- [x] `auth_repository.dart` — Supabase Auth Kakao/Google OAuth (browser 방식)
-  - `signInWithKakao()` — `OAuthProvider.kakao` + `redirectTo` + `LaunchMode.externalApplication`
-  - `signInWithGoogle()` — `OAuthProvider.google` + `redirectTo` + `LaunchMode.externalApplication`
-  - Apple 로그인 제거 (sign_in_with_apple → browser OAuth로 통일)
-  - google_sign_in 패키지 제거 (nonce 불일치 이슈로 browser OAuth 전환)
-- [x] `onboarding_screen.dart` — 그라데이션 배경, 로그인 버튼 2종
-  - 카카오 (노란색 #FEE500, 검정 텍스트) — 첫 번째
-  - Google (아웃라인, 커스텀 G 아이콘)
-  - `didChangeDependencies()` — authStateProvider 리스너로 OAuth 콜백 감지 → `/map` 이동
-- [x] `app_router.dart` — 인증 상태 기반 자동 리다이렉트 추가
-  - 로그인 상태 → 앱 실행 시 바로 `/map` (온보딩 스킵)
-  - 로그아웃 → 자동으로 `/onboarding` 복귀
-  - `refreshListenable`: authStateProvider 변경 감지
+- [x] `auth_repository.dart` — **익명 인증 모델로 전환** (Kakao/Google OAuth 제거)
+  - `signInAnonymously()` — Supabase 익명 로그인 (기기 ID 기반 identity)
+  - `deleteAccount()` — reports 삭제 + signOut
+  - 이전: Kakao/Google browser OAuth → **MVP 이후로 보류**
+- [x] `onboarding_screen.dart` — **2.6초 후 무조건 `/map` 이동** (auth gate 제거)
+  - 스플래시 애니메이션만 표시 후 바로 지도로 이동
+  - `_trySignInBackground()` — 이동 후 백그라운드에서 익명 로그인 재시도 (10초 주기)
+  - `unawaited()` 패턴으로 fire-and-forget 처리
+  - Keychain에 세션 있으면 router가 바로 `/map` fast-path
+- [x] `app_router.dart` — **device-identity 모델 redirect 규칙**
+  - 로그인 상태 + onboarding → `/map` fast-path
+  - **비로그인 사용자는 리다이렉트 없음** (지도는 항상 접근 가능)
+  - 리포트 제출만 세션 필요 (Supabase RLS)
 - [x] `wave_to_spot_painter.dart` — **PathMetric 기반 완전 재작성**
   - 작은 흰 점이 경로를 따라 이동하며 잔상을 남기는 애니메이션
   - 좌측: EKG 심전도 파형 클러스터 (아이콘과 동일한 파형 형태)
@@ -124,15 +128,46 @@ Phase 12: UI 폴리시           ████████████ 100% ✅ (
 
 ### Phase 6: Profile Feature
 - [x] `profile_screen.dart`
+  - **`_ProfileHeader`** — 닉네임(또는 '익명 사용자') + 총 리포트 수 + 설정 이동 버튼
   - 총 리포트 수 / 평균 dB 통계 카드
   - Trust Grade 카드 (Bronze/Silver/Gold 진행률 바)
   - 방문 기록 리스트 (스티커 + dB + 날짜)
 
 ### Phase 7: Settings Feature
 - [x] `settings_screen.dart`
+  - **내 프로필 섹션** — 닉네임 표시 + 탭으로 수정 다이얼로그 (최대 20자)
   - 개인정보 처리방침 카드 (강조 표시)
   - 마이크/위치 권한 상태 표시 + 관리 버튼
-  - 로그아웃 / 계정 삭제 (실제 구현 완료)
+  - **로그아웃 제거** (device-identity 모델 — 불필요)
+  - **"데이터 초기화"** (구: 계정 삭제) — nicknameProvider.clear() + deleteAccount() + `/onboarding`
+  - 닉네임 저장 버그 수정: `builder: (dialogCtx)` 사용 → `Navigator.pop(dialogCtx)`
+
+### 익명 인증 아키텍처 전환 + 닉네임 기능 (2026-02-27)
+
+#### 세션 영속성 — SecureLocalStorage
+- [x] `lib/core/services/secure_local_storage.dart` — **iOS Keychain 기반 세션 저장** (NEW)
+  - `LocalStorage` 인터페이스 구현 (`flutter_secure_storage`)
+  - `IOSOptions(accessibility: KeychainAccessibility.first_unlock)` — 기기 잠금 후 첫 해제 시 접근 가능
+  - 오류 시 silent catch → EmptyLocalStorage fallback
+- [x] `lib/core/services/supabase_service.dart` — SecureLocalStorage 우선, 실패 시 EmptyLocalStorage fallback
+  - 익명 사용자 세션이 앱 재시작 후에도 유지됨 (새 anon 유저 생성 방지)
+
+#### 닉네임 서비스
+- [x] `lib/core/services/nickname_service.dart` — **SharedPreferences 기반 닉네임 관리** (NEW)
+  - `NicknameNotifier extends Notifier<String?>` (Riverpod 3.x 패턴)
+  - `build()` — 초기 null 반환 후 `_load()` 비동기 로드
+  - `set(name)` / `clear()` — SharedPreferences 저장/삭제 + state 즉시 업데이트
+  - `nicknameProvider = NotifierProvider<NicknameNotifier, String?>`
+
+#### LaunchScreen 업데이트
+- [x] `ios/Runner/Base.lproj/LaunchScreen.storyboard`
+  - 흰 배경 + 빈 imageView → **Mint Green 배경 (#A8E6CF) + "Cafe Vibe" 흰 텍스트**
+  - 앱 로딩 중 브랜드 일관성 유지
+
+#### 주요 버그 수정
+- [x] **검은 화면 버그** (`settings_screen.dart` `_editNickname`)
+  - 원인: `builder: (_)` → 외부 context로 `Navigator.pop(context)` → 설정 화면 자체 pop
+  - 수정: `builder: (dialogCtx)` → 모든 `Navigator.pop(dialogCtx)` 사용
 
 ### Phase 6 수정: 프로필 stale cache 수정 (2026-02-27)
 - [x] `profile_screen.dart` — `FutureProvider` → `FutureProvider.autoDispose` 전환
@@ -181,15 +216,14 @@ Phase 12: UI 폴리시           ████████████ 100% ✅ (
   - 온보딩 화면 및 애니메이션 정상 작동 확인
 
 ### Phase 11: 앱 아이콘 & 빌드
-- [x] `assets/icon/app_icon.png` 저장 완료 (1024×1024 PNG)
-  - 생성 스크립트: `/tmp/draw_icon_v9.py` (aggdraw AGG 라이브러리 사용)
-  - **4개 불규칙 노이즈 스파이크**: tiny burst (±45px) / tall sharp (±190px) / medium double-top (±130px) / medium-tall (±165px)
-  - **선 두께**: 27px (1024px 기준) — aggdraw Pen으로 완벽한 안티앨리어싱
-  - **렌더링**: 2048px 그린 후 Lanczos 1024px 다운스케일 (슈퍼샘플링)
-  - **배경**: Mint(168,230,207) 좌하 → SkyBlue(135,206,235) 우상 대각선 그라데이션
-  - **흰 원**: center(887,455), r=55 (1024px 기준)
-- [x] `dart run flutter_launcher_icons` 실행 — 전체 iOS 아이콘 사이즈 자동 생성
-- [x] iPhone "Moon" (iOS 26 beta) 재설치 성공 (아이콘 반영 확인)
+- [x] `assets/icon/app_icon.png` 교체 완료 (2026-02-28)
+  - 출처: `/Users/kjmoon/Downloads/icon.png` → `assets/icon/app_icon.png` 복사
+  - 디자인: 맵 핀 외곽선 + 내부 원 + 사운드 파형(EKG) + 아래 리플 호 3개
+  - 배경: Mint(#A8E6CF) → SkyBlue(#87CEEB) 대각선 그라데이션, 흰색 아웃라인 스타일
+  - 이전 v9 (노이즈 스파이크) → v10 (맵핀+파형) 로 교체
+- [x] `dart run flutter_launcher_icons` 실행 — 전체 iOS 아이콘 사이즈 자동 생성 ✅
+- [x] `flutter build ios --release` 성공 (41.6MB) ✅
+- [x] `xcrun devicectl device install app` → iPhone "Moon" (iOS 26 beta) 설치 성공 ✅
 
 ### 로그인 화면 파형 높이 1.5배 확대
 - [x] `lib/features/auth/presentation/onboarding_screen.dart`
@@ -206,12 +240,171 @@ Phase 12: UI 폴리시           ████████████ 100% ✅ (
   # Step 2: 설치
   xcrun devicectl device install app --device DEVICE_ID build/ios/iphoneos/Runner.app
   # Step 3: 실행
-  xcrun devicectl device process launch --device DEVICE_ID com.noisespot.noiseSpot
+  xcrun devicectl device process launch --device DEVICE_ID com.cafevibe.cafeVibe
   ```
 
 ---
 
-## ⏳ 남은 작업
+## ⏳ 남은 작업 — 상세 계획
+
+> 우선순위: 🔴 즉시 | 🟠 단기 | 🟡 중기 | 🟢 장기
+
+---
+
+### 🔴 Step 1: Supabase Migration 002 적용 (수동)
+
+**파일**: `supabase/migrations/002_user_stats_and_rankings.sql`
+
+**방법**: Supabase Dashboard → SQL Editor → New query → 전체 내용 붙여넣기 → Run
+
+**적용 후 활성화되는 기능**:
+- 측정왕 랭킹 탭 (user_stats 테이블 없으면 "준비 중" 표시)
+- 리포트 제출 시 user_stats 자동 집계 (update_user_stats RPC)
+- 프로필 포인트 공식 totalCafes 반영
+- 서버 닉네임 저장 (upsert_user_profile RPC)
+
+**주의**: 이미 제출된 리포트의 user_stats 백필 필요 → 적용 후 아래 SQL 실행:
+```sql
+SELECT update_user_stats(user_id) FROM (SELECT DISTINCT user_id FROM reports) u;
+```
+
+---
+
+### 🔴 Step 2: 탐색 화면 카페 탭 → 상세 카드 표시
+
+**파일**: `lib/features/explore/presentation/explore_screen.dart`
+
+**현재**: `_CafeListTile.onTap` 이 비어 있음 (`// 상세화면은 추후 구현`)
+
+**구현 내용**:
+- `onTap` 시 `showModalBottomSheet` 로 `SpotInfoCard` 표시 (map_screen.dart와 동일 위젯)
+- "지금 소음 측정하기" → `context.push('/report?spotId=...&spotName=...')`
+- `SpotInfoCard`는 `spot_marker_widget.dart`에 이미 구현됨 → 재사용
+
+**코드 변경 범위**: `_CafeListTile.onTap` 1곳만 수정 (15줄 이하)
+
+---
+
+### 🔴 Step 3: 닉네임 서버 저장 연동 (migration 002 적용 후)
+
+**파일**: `lib/features/settings/presentation/settings_screen.dart`
+
+**현재**: 닉네임은 SharedPreferences에만 저장됨 (기기 변경 시 소실)
+
+**구현 내용**:
+- `_editNickname()` 다이얼로그에서 저장 시 `upsert_user_profile(p_user_id, p_nickname)` RPC 추가 호출
+- migration 002 필요 (미적용 시 조용히 무시)
+
+```dart
+// settings_screen.dart 닉네임 저장 후 추가
+try {
+  await supabase.rpc('upsert_user_profile', params: {
+    'p_user_id': userId,
+    'p_nickname': newNick,
+  });
+} catch (_) {}
+```
+
+---
+
+### 🟠 Step 4: App Store 준비 (App Store Connect 설정)
+
+#### 4-A: GitHub Pages 개인정보처리방침 URL 활성화
+- GitHub repo → Settings → Pages → Source: `docs/` 폴더 선택
+- URL: `https://moonkj.github.io/Noise-Spot/docs/privacy-policy.html`
+- App Store Connect에서 이 URL 등록 필요
+
+#### 4-B: App Store Connect 앱 정보 입력
+
+| 항목 | 내용 |
+|------|------|
+| 앱 이름 | Cafe Vibe |
+| 부제목 | 카페 소음 지도 |
+| 카테고리 | Travel (주), Lifestyle (부) |
+| 연령 등급 | 4+ |
+| 개인정보처리방침 URL | https://moonkj.github.io/Noise-Spot/docs/privacy-policy.html |
+| 지원 URL | https://github.com/moonkj/Noise-Spot/issues |
+| 키워드 (한) | 카페,소음,조용한카페,카페지도,소음측정 |
+| 키워드 (영) | cafe,noise,quiet,map,sound |
+
+#### 4-C: 앱 설명 (한국어 초안)
+
+```
+조용한 카페를 찾는 가장 빠른 방법, Cafe Vibe
+
+내 주변 카페의 실시간 소음 데이터를 지도에서 바로 확인하세요.
+직접 소음을 측정하고 공유하면 더 정확해집니다.
+
+주요 기능:
+• 지도에서 카페 소음 레벨 한눈에 확인 (파란색=조용, 빨간색=시끄러움)
+• 스마트폰 마이크로 dB 직접 측정 (음성 저장 없음)
+• 조용한 카페 TOP 랭킹
+• 나만의 측정 기록 & 레벨 시스템
+```
+
+#### 4-D: 스크린샷 촬영 (필수)
+- **iPhone 6.7" (iPhone 16 Pro Max)**: 1290×2796px — 필수
+- **iPhone 5.5"**: 1242×2208px — 필수 (iPad 없으면 이것만으로도 가능)
+- 촬영 화면: 지도 / 소음 측정 / 탐색 / 랭킹 / 프로필 (최소 3장)
+- 시뮬레이터에서 촬영: `flutter run -d "iPhone 16 Pro Max"` → Cmd+S
+
+#### 4-E: IPA 빌드 & TestFlight 업로드
+```bash
+# IPA 빌드 (App Store용)
+flutter build ipa --release \
+  --dart-define=SUPABASE_URL=https://rqlfyumzmpmhupjtroid.supabase.co \
+  "--dart-define=SUPABASE_ANON_KEY=<key>"
+
+# Transporter 앱으로 업로드 또는:
+xcrun altool --upload-app --type ios -f build/ios/ipa/*.ipa \
+  --apiKey <ASC_KEY_ID> --apiIssuer <ISSUER_ID>
+```
+
+---
+
+### 🟡 Step 5: UX 개선 (앱 품질)
+
+#### 5-A: 탐색 화면 → 지도 연동
+- 탐색 탭에서 카페 탭 시 지도 탭으로 이동 + 해당 카페 위치 중심 이동
+- `StatefulShellRoute` 탭 전환 + `MapController.moveTo(lat, lng)` 연동
+
+#### 5-B: 리포트 완료 후 탐색 화면 새로고침
+- 리포트 제출 성공 후 `ref.invalidate(_nearbySpotsProvider)` 호출
+- 새로 측정한 카페가 탐색 목록에 즉시 반영
+
+#### 5-C: 온보딩 닉네임 설정
+- 최초 실행 시 닉네임 입력 화면 추가 (선택 사항, 건너뛰기 가능)
+- 프로필/랭킹에 내 이름 표시
+
+#### 5-D: 지도 마커 클러스터링
+- 많은 마커 밀집 시 클러스터 표시
+- `google_maps_cluster_manager` 패키지 적용
+
+---
+
+### 🟢 Step 6: 장기 기능 (MVP 이후)
+
+#### 6-A: 소셜 로그인 복원
+- Kakao 비즈 앱 전환 후 account_email 권한 획득
+- `auth_repository.dart`에 `signInWithKakao()` 재추가
+- 기기 변경 시 데이터 연속성 보장
+
+#### 6-B: 카페 상세 페이지
+- 스팟 ID 기반 상세 화면 (`/spot/:id`)
+- 최근 측정 기록 리스트
+- 시간대별 소음 추이 (LineChart)
+- 스티커 비율 차트
+
+#### 6-C: 찜하기 기능
+- 자주 가는 카페 저장
+- 탐색 화면 "찜한 카페" 필터
+
+#### 6-D: 알림 기능 (현재 UI만 있음)
+- `firebase_messaging` 패키지 추가
+- 측정 알림 / 랭킹 변동 알림
+- 설정 화면 토글과 실제 구독 연동
+
+---
 
 ### Phase 9: 테스트 ✅ 완료 (71/71)
 
@@ -384,14 +577,120 @@ Phase 12: UI 폴리시           ████████████ 100% ✅ (
   - `submitWithSticker()` — 저장된 lat/lng 있으면 GPS 대신 사용
   - 신규 스팟 생성 시 `googlePlaceId` 전달 → `google_place_id` 컬럼 저장
 
+### Phase 14: UI 전면 개편 (Cafe Vibe 리브랜딩) — 2026-03-01
+
+#### Phase A: DB 마이그레이션 SQL 작성
+- [x] `supabase/migrations/002_user_stats_and_rankings.sql` 작성 완료 (**Supabase 미적용 — 수동 실행 필요**)
+  - `spots.formatted_address TEXT` 컬럼 추가
+  - `user_profiles` 테이블 (서버 닉네임)
+  - `user_stats` 테이블 (total_reports, total_cafes)
+  - `update_user_stats()` RPC (report 제출 후 client 호출)
+  - `get_cafe_ranking_quiet()` / `get_user_ranking()` / `get_cafe_ranking_weekly()` RPC
+  - `upsert_user_profile()` / `get_my_stats()` RPC
+
+#### Phase B: 스티커 표시명 변경
+- [x] `spot_model.dart` — StickerType.label 변경 (DB값 유지, 표시명만)
+  - study → '딥 포커스' 🎧, meeting → '소셜 버즈' 💬, relax → '소프트 바이브' ☕
+  - `filterLabel` getter 추가
+
+#### Phase C: 네비게이션 구조 변경 (3탭 → 4탭)
+- [x] `app_router.dart` — ShellRoute에 `/explore`, `/ranking` 추가
+- [x] `_MainShell` — `_BottomNav` 4탭 포함 (지도/탐색/랭킹/프로필)
+- [x] `map_screen.dart` — `_BottomNav`, `_NavItem` 제거
+
+#### Phase D: 탐색 화면 신규
+- [x] `lib/features/explore/presentation/explore_screen.dart` 신규 생성
+  - `_nearbySpotsProvider` — 3km 반경 자동 탐색 (`getSpotsNear` 재사용)
+  - 가로 스크롤 필터칩 (전체/딥포커스/소프트바이브/소셜버즈/가까운순/인기순)
+  - `_CafeListTile` — 컬러 아바타 + 카페명 + 주소 + 스티커 태그 + 측정수
+  - FAB: 카페 등록 (→ /report)
+
+#### Phase E: 랭킹 화면 신규
+- [x] `lib/features/ranking/data/ranking_repository.dart` 신규 생성
+  - `QuietCafeRankItem` / `UserRankItem` / `WeeklyCafeRankItem` 모델
+  - `quietCafeRankingProvider` / `userRankingProvider` / `weeklyCafeRankingProvider`
+- [x] `lib/features/ranking/presentation/ranking_screen.dart` 신규 생성
+  - 3탭 TabController (조용한 카페 TOP / 측정왕 TOP / 이번 주 활발한 카페)
+  - `_RankCard` 공통 위젯 (금/은/동 메달 배지)
+
+#### Phase F: 프로필 화면 재설계
+- [x] `lib/core/utils/level_service.dart` 신규 — `UserLevel`, `BadgeInfo`, `LevelService`
+  - 레벨 임계값: [0, 5, 10, 20, 50] → Lv1~5
+  - 포인트: `totalReports × 50 + totalCafes × 70`
+  - 뱃지: 첫 측정 / 조용한 발견자 / 측정 5회 / 카페 탐험가
+- [x] `report_model.dart` — `spotName`, `spotAddress` 필드 추가 (spots join)
+- [x] `report_repository.dart` — select `spots(name, formatted_address)` + `update_user_stats()` RPC 호출
+- [x] `profile_screen.dart` 전면 재설계
+  - `_ProfileHeader`: 그라데이션 원형 아바타(이니셜) + 레벨칩
+  - `_LevelCard`: 이모지 + 레벨명 + 프로그레스바
+  - `_StatsRow`: 총 측정 + 획득 포인트
+  - `_BadgeSection`: 4개 뱃지 가로 스크롤
+  - `_ReportTile`: dB 배지 + 카페명 + 스티커 레이블 + 몇 분/시간 전
+
+#### Phase G: 설정 화면 재설계
+- [x] `settings_screen.dart` 전면 재설계
+  - 계정 정보 / 알림 설정 토글 (UI only) / 앱 설정 / 권한 관리 / 프리미엄 배너 / 정보 / 계정 섹션
+  - 로그아웃 (→ onboarding) + 회원탈퇴 (→ deleteAccount) 분리
+
+#### 코드 품질
+- [x] `flutter analyze` — **0 issues** ✅
+- [x] 테스트 파일 import `package:noise_spot/` → `package:cafe_vibe/` 업데이트
+
+---
+
+### Phase 15: 버그 수정 & 안정화 — 2026-03-01
+
+#### 랭킹 탭 영구 로딩 버그 수정 (근본 원인 2개)
+
+**원인 1: `FutureProvider.autoDispose` + TabBarView 충돌**
+- 탭 전환 시 provider가 dispose → 재생성 → loading 상태 반복
+- 수정: **ranking providers 모두 `autoDispose` 제거** (결과를 앱 세션 동안 캐시)
+- 재조회는 `_RetryView` retry 버튼 (`ref.invalidate()`) 으로만 가능
+
+**원인 2: 존재하지 않는 RPC 함수 호출 (migration 002 미적용)**
+- `get_cafe_ranking_quiet`, `get_user_ranking`, `get_cafe_ranking_weekly` RPC 없음
+- Supabase 즉시 에러 → autoDispose 재생성 루프
+- 수정: **RPC 완전 제거, 직접 테이블 쿼리로 대체**
+
+#### ranking_repository.dart 완전 재작성
+
+| 탭 | 이전 | 이후 |
+|----|------|------|
+| 조용한 카페 | `get_cafe_ranking_quiet` RPC | `spots` 직접 쿼리 (report_count≥3, avg_db ASC) |
+| 측정왕 | `get_user_ranking` RPC | `user_stats` 직접 쿼리 + `user_profiles` 닉네임 조인 (migration 없으면 `[]`) |
+| 이번 주 | `get_cafe_ranking_weekly` RPC | `reports` 7일치 직접 조회 → Dart 집계 |
+
+- `_EmptyMeasurerView` 추가: migration 미적용 시 "랭킹 집계 준비 중" 표시
+
+#### 프로필 화면 실데이터 연동
+
+- `report_repository.dart getMyStats()` 확장
+  - `spots(average_db)` join 추가 → `total_cafes`, `has_quiet_cafe` 반환
+  - `total_cafes` = distinct spot_id 개수
+  - `has_quiet_cafe` = average_db < 50인 카페 방문 기록 여부
+- `profile_screen.dart`
+  - `totalCafes`, `hasQuietCafe` 하드코딩(0/false) → 실데이터 사용
+  - `LevelService.calcPoints(total, totalCafes)` — 포인트 공식 반영
+  - `_BadgeSection` 뱃지 잠금 실제 조건으로 해제 ("조용한 발견자", "카페 탐험가")
+  - `_StatsRow` 2열 → 3열: 총 측정 / 등록 카페 / 획득 포인트
+
+#### update_user_stats() Crash 방지
+- `report_repository.dart submitReport()` 마지막 RPC 호출 try-catch 처리
+  - migration 002 미적용 → RPC 없음 → 예외 → **리포트 제출 전체 실패** 버그 수정
+  - 이제 리포트 삽입 + EMA 갱신은 성공, stats 갱신은 조용히 skip
+
+---
+
 ### Phase 13: App Store 출시 준비
 
 | 상태 | 작업 |
 |------|------|
+| ✅ | 개인정보처리방침 HTML 작성 (`docs/privacy-policy.html`) — GitHub Pages 배포 예정 |
+| ✅ | IPA 빌드 성공 (`flutter build ipa`) |
+| ⏳ | GitHub Pages 활성화 (repo Settings → Pages → docs/ 폴더) |
 | ⏳ | App Store Connect — 앱 정보 입력 (한국어/영어) |
 | ⏳ | 스크린샷 — 6.7" / 6.5" / 5.5" (지도, 리포팅, 프로필 화면) |
-| ⏳ | 개인정보처리방침 URL (간단한 웹페이지 필요) |
-| ⏳ | TestFlight 내부 테스트 → 외부 테스트 → 심사 제출 |
+| ⏳ | Transporter로 TestFlight 업로드 → 내부 테스트 → 심사 제출 |
 
 ---
 
@@ -424,12 +723,15 @@ Phase 12: UI 폴리시           ████████████ 100% ✅ (
 - iOS reversed client ID URL scheme: `com.googleusercontent.apps.51820551948-pn564r5lmr9r65en064piv3g3sr0m86h` → Info.plist 등록 완료
 - Google 로그인 실기기 성공 확인
 
-### 6. Kakao KOE205 에러 — 비즈 앱 등록 보류
-- **현상**: `account_email` scope 권한 없음 → Kakao가 요청 자체를 거부
-- **원인**: 개인 앱은 `account_email` 사용 불가, 비즈 앱 전환 필요
-- **해결 방법**: Kakao Developers → 앱 설정 → 추가 기능 신청 → 비즈 앱 등록 후 account_email 권한 신청
-- **임시 상태**: 카카오 버튼은 UI에 유지, 로그인 시 KOE205 에러 발생
-- **우회**: Google 로그인으로 테스트 가능
+### 6. Kakao / Google OAuth — MVP 이후 보류
+- 익명 인증 모델로 전환하면서 OAuth 로그인 UI 제거됨
+- 필요 시 `auth_repository.dart`에 `signInWithKakao()` / `signInWithGoogle()` 재추가 가능
+- Kakao KOE205 (`account_email` 권한) 이슈는 비즈 앱 전환 후 해결 가능
+
+### 11. Supabase 익명 인증 활성화 필수 ⚠️
+- **현상**: `signInAnonymously()` 실패 → 리포트 제출 불가 (Supabase RLS)
+- **해결**: Supabase 대시보드 → Authentication → Providers → **Anonymous Sign-Ins → Enable**
+- 지도 탐색은 anon 인증 없이도 동작 (get_spots_near GRANT TO anon 적용됨)
 
 ### 10. 시드 데이터 미생성 (요청 시 처리)
 - `assets/seed/brand_cafes.json` 현재 빈 파일 (`"spots": []`)
@@ -499,5 +801,5 @@ xcrun devicectl device install app \
 # 3. 실행
 xcrun devicectl device process launch \
   --device 835A5E84-05B4-520C-B52C-E69BBEE38FED \
-  com.noisespot.noiseSpot
+  com.cafevibe.cafeVibe
 ```

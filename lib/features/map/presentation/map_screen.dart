@@ -266,12 +266,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ),
         ],
       ),
-      // Bottom Navigation
-      bottomNavigationBar: _BottomNav(
-        onMap: () {},
-        onProfile: () => context.go('/profile'),
-        onSettings: () => context.go('/settings'),
-      ),
     );
   }
 
@@ -652,90 +646,3 @@ class _SearchBarState extends ConsumerState<_SearchBar> {
   }
 }
 
-class _BottomNav extends StatelessWidget {
-  final VoidCallback onMap;
-  final VoidCallback onProfile;
-  final VoidCallback onSettings;
-
-  const _BottomNav({
-    required this.onMap,
-    required this.onProfile,
-    required this.onSettings,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 60 + MediaQuery.of(context).padding.bottom,
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: AppColors.divider)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _NavItem(
-            icon: Icons.map_rounded,
-            label: '지도',
-            isActive: true,
-            onTap: onMap,
-          ),
-          _NavItem(
-            icon: Icons.person_rounded,
-            label: '마이페이지',
-            isActive: false,
-            onTap: onProfile,
-          ),
-          _NavItem(
-            icon: Icons.settings_rounded,
-            label: '설정',
-            isActive: false,
-            onTap: onSettings,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isActive ? AppColors.mintGreen : AppColors.textHint;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 22, color: color),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                color: color,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

@@ -15,5 +15,5 @@ void main() async {
 
   // Run the app immediately — Supabase initialises inside OnboardingScreen
   // via supabaseInitProvider (FutureProvider), so the UI is never blocked.
-  runApp(const ProviderScope(child: NoiseSpotApp()));
+  runApp(const ProviderScope(child: CafeVibeApp()));
 }

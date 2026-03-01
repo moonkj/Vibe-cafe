@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_spot/core/utils/noise_filter.dart';
+import 'package:cafe_vibe/core/utils/noise_filter.dart';
 
 void main() {
   group('NoiseFilter.isValid', () {

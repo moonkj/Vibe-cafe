@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_spot/core/utils/ema_calculator.dart';
+import 'package:cafe_vibe/core/utils/ema_calculator.dart';
 
 void main() {
   group('EmaCalculator', () {

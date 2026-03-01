@@ -39,6 +39,12 @@ class ReportRepository {
       'p_sticker': sticker.key,
       'p_user_id': userId,
     });
+
+    // Update aggregated user stats (total_reports, total_cafes)
+    // migration 002 미적용 시 RPC 없음 → 무시 (리포트 제출은 이미 완료된 상태)
+    try {
+      await _client.rpc('update_user_stats', params: {'p_user_id': userId});
+    } catch (_) {}
   }
 
   /// Fetch user's own reports, newest first.
@@ -48,7 +54,7 @@ class ReportRepository {
 
     final response = await _client
         .from('reports')
-        .select('*, spots(name)')
+        .select('*, spots(name, formatted_address)')
         .eq('user_id', userId)
         .order('created_at', ascending: false)
         .limit(limit);
@@ -59,17 +65,20 @@ class ReportRepository {
   }
 
   /// Get stats for the current user.
+  /// Returns: total, avg_db, total_cafes, has_quiet_cafe
   Future<Map<String, dynamic>> getMyStats() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return {};
 
     final response = await _client
         .from('reports')
-        .select('measured_db')
+        .select('measured_db, spot_id, spots(average_db)')
         .eq('user_id', userId);
 
     final data = response as List;
-    if (data.isEmpty) return {'total': 0, 'avg_db': 0.0};
+    if (data.isEmpty) {
+      return {'total': 0, 'avg_db': 0.0, 'total_cafes': 0, 'has_quiet_cafe': false};
+    }
 
     final total = data.length;
     final avgDb = data
@@ -77,7 +86,22 @@ class ReportRepository {
             .reduce((a, b) => a + b) /
         total;
 
-    return {'total': total, 'avg_db': avgDb};
+    final spotIds = data.map((e) => e['spot_id'] as String).toSet();
+    final totalCafes = spotIds.length;
+
+    final hasQuietCafe = data.any((e) {
+      final spotData = e['spots'] as Map<String, dynamic>?;
+      if (spotData == null) return false;
+      final avgSpotDb = (spotData['average_db'] as num?)?.toDouble() ?? 100.0;
+      return avgSpotDb < 50;
+    });
+
+    return {
+      'total': total,
+      'avg_db': avgDb,
+      'total_cafes': totalCafes,
+      'has_quiet_cafe': hasQuietCafe,
+    };
   }
 }
 

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_spot/features/map/presentation/map_controller.dart';
-import 'package:noise_spot/features/map/domain/spot_model.dart';
+import 'package:cafe_vibe/features/map/presentation/map_controller.dart';
+import 'package:cafe_vibe/features/map/domain/spot_model.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

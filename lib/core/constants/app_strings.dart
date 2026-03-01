@@ -2,8 +2,8 @@ class AppStrings {
   AppStrings._();
 
   // App Info
-  static const String appName = 'Noise Spot';
-  static const String appSlogan = '시끄러운 도시 속, 나만의 고요한 스팟 찾기';
+  static const String appName = 'Cafe Vibe';
+  static const String appSlogan = '시끄러운 도시 속, 나만의 고요한 카페 찾기';
 
   // Privacy — fixed notice (displayed on all measurement & settings screens)
   static const String privacyNoticeMeasure =
@@ -16,15 +16,39 @@ class AppStrings {
   static const String loginWithKakao = '카카오로 로그인';
   static const String loginWithGoogle = 'Google로 로그인';
 
-  // Map Filters
+  // Map Filters (DB keys — unchanged)
   static const String filterStudy = 'STUDY';
   static const String filterMeeting = 'MEETING';
   static const String filterRelax = 'RELAX';
 
-  // Sticker Labels
-  static const String stickerStudyLabel = '집중하기 좋아요';
-  static const String stickerMeetingLabel = '화상회의 가능해요';
-  static const String stickerRelaxLabel = '쉬기 좋아요';
+  // Sticker Labels (새 Cafe Vibe 브랜딩)
+  static const String stickerStudyLabel = '딥 포커스';
+  static const String stickerMeetingLabel = '소셜 버즈';
+  static const String stickerRelaxLabel = '소프트 바이브';
+
+  // Explore screen
+  static const String exploreTitle = '탐색';
+  static const String exploreFilterAll = '전체';
+  static const String exploreSortNearest = '가까운순';
+  static const String exploreSortPopular = '인기순';
+  static const String exploreAddCafe = '카페 등록';
+  static const String exploreEmpty = '주변 3km 내 카페가 없어요';
+  static String exploreCafeCount(int count) => '$count개의 카페';
+
+  // Ranking screen
+  static const String rankingTitle = '랭킹';
+  static const String rankingTabQuiet = '조용한 카페 TOP';
+  static const String rankingTabMeasurers = '측정왕 TOP';
+  static const String rankingTabWeekly = '이번 주 활발한 카페';
+
+  // Level names
+  static const List<String> levelNames = [
+    '카페 탐험가',   // Lv.1
+    '소음 감지사',   // Lv.2
+    '카페 고수',     // Lv.3
+    '카페 마스터',   // Lv.4
+    '카페온도 레전드', // Lv.5
+  ];
 
   // dB Labels
   static const String dbVeryQuiet = '매우 조용';

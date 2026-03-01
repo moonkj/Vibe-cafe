@@ -11,16 +11,20 @@ extension StickerTypeX on StickerType {
         StickerType.relax => 'RELAX',
       };
 
+  /// 앱 UI 표시용 레이블 (DB 값: STUDY/MEETING/RELAX 유지)
   String get label => switch (this) {
-        StickerType.study => '집중하기 좋아요',
-        StickerType.meeting => '화상회의 가능해요',
-        StickerType.relax => '쉬기 좋아요',
+        StickerType.study => '딥 포커스',
+        StickerType.meeting => '소셜 버즈',
+        StickerType.relax => '소프트 바이브',
       };
 
+  /// 필터칩 표시용 (label과 동일)
+  String get filterLabel => label;
+
   String get emoji => switch (this) {
-        StickerType.study => '📚',
-        StickerType.meeting => '📹',
-        StickerType.relax => '🌿',
+        StickerType.study => '🎧',
+        StickerType.meeting => '💬',
+        StickerType.relax => '☕',
       };
 
   static StickerType fromKey(String key) => switch (key.toUpperCase()) {
@@ -34,6 +38,7 @@ class SpotModel {
   final String id;
   final String name;
   final String? googlePlaceId;
+  final String? formattedAddress;
   final double lat;
   final double lng;
   final double averageDb;
@@ -47,6 +52,7 @@ class SpotModel {
     required this.id,
     required this.name,
     this.googlePlaceId,
+    this.formattedAddress,
     required this.lat,
     required this.lng,
     required this.averageDb,
@@ -62,6 +68,7 @@ class SpotModel {
       id: json['id'] as String,
       name: json['name'] as String,
       googlePlaceId: json['google_place_id'] as String?,
+      formattedAddress: json['formatted_address'] as String?,
       lat: (json['lat'] as num).toDouble(),
       lng: (json['lng'] as num).toDouble(),
       averageDb: (json['average_db'] as num).toDouble(),

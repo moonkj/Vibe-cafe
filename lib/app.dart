@@ -3,15 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 
-class NoiseSpotApp extends ConsumerWidget {
-  const NoiseSpotApp({super.key});
+class CafeVibeApp extends ConsumerWidget {
+  const CafeVibeApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
-      title: 'Noise Spot',
+      title: 'Cafe Vibe',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       routerConfig: router,

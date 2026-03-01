@@ -30,7 +30,9 @@ class SpotMarkerWidget extends StatelessWidget {
     final center = Offset(ps / 2, ps / 2);
     final bw = (isReduced ? 1.5 : spot.markerBorderWidth) * pixelRatio;
     final innerRadius = ps / 2 - bw / 2;
-    final color = DbClassifier.colorFromDb(spot.averageDb);
+    final color = spot.reportCount == 0
+        ? const Color(0xFFBBBBBB)
+        : DbClassifier.colorFromDb(spot.averageDb);
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
@@ -57,11 +59,11 @@ class SpotMarkerWidget extends StatelessWidget {
         ..strokeWidth = bw,
     );
 
-    // dB number (individual mode only)
+    // dB number or "?" (individual mode only)
     if (!isReduced) {
       final tp = TextPainter(
         text: TextSpan(
-          text: spot.averageDb.toStringAsFixed(0),
+          text: spot.reportCount == 0 ? '?' : spot.averageDb.toStringAsFixed(0),
           style: TextStyle(
             color: Colors.white,
             fontSize: 9 * pixelRatio,
@@ -87,7 +89,9 @@ class SpotMarkerWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = isReduced ? 24.0 : 32.0;
-    final color = DbClassifier.colorFromDb(spot.averageDb);
+    final color = spot.reportCount == 0
+        ? const Color(0xFFBBBBBB)
+        : DbClassifier.colorFromDb(spot.averageDb);
     final borderWidth = isReduced ? 1.5 : spot.markerBorderWidth;
 
     return Opacity(
@@ -111,7 +115,7 @@ class SpotMarkerWidget extends StatelessWidget {
             ? null
             : Center(
                 child: Text(
-                  spot.averageDb.toStringAsFixed(0),
+                  spot.reportCount == 0 ? '?' : spot.averageDb.toStringAsFixed(0),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 9,
@@ -168,14 +172,20 @@ class SpotInfoCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: DbClassifier.colorFromDb(spot.averageDb)
-                      .withValues(alpha: 0.15),
+                  color: spot.reportCount == 0
+                      ? const Color(0xFFEEEEEE)
+                      : DbClassifier.colorFromDb(spot.averageDb)
+                          .withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '${spot.averageDb.toStringAsFixed(1)} dB',
+                  spot.reportCount == 0
+                      ? '측정 없음'
+                      : '${spot.averageDb.toStringAsFixed(1)} dB',
                   style: TextStyle(
-                    color: DbClassifier.colorFromDb(spot.averageDb),
+                    color: spot.reportCount == 0
+                        ? const Color(0xFF999999)
+                        : DbClassifier.colorFromDb(spot.averageDb),
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
                   ),

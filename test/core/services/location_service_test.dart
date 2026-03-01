@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noise_spot/core/services/location_service.dart';
+import 'package:cafe_vibe/core/services/location_service.dart';
 
 void main() {
   // 서울 광화문 기준 좌표

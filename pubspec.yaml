@@ -1,5 +1,5 @@
-name: noise_spot
-description: "시끄러운 도시 속, 나만의 고요한 스팟 찾기"
+name: cafe_vibe
+description: "시끄러운 도시 속, 나만의 고요한 카페 찾기"
 publish_to: 'none'
 version: 1.0.0+1
 
