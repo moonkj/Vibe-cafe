@@ -327,24 +327,12 @@ class _CafeListTile extends StatelessWidget {
     return '${(m / 1000).toStringAsFixed(1)}km';
   }
 
-  /// 카페 이름 첫 글자의 배경 색상 (일관된 색상)
-  Color _avatarColor() {
-    final colors = [
-      const Color(0xFFBBDEFB), // light blue
-      const Color(0xFFB2EBF2), // light cyan
-      const Color(0xFFDCEDC8), // light green
-      const Color(0xFFFFCCBC), // light orange
-      const Color(0xFFE1BEE7), // light purple
-      const Color(0xFFFFE0B2), // light amber
-    ];
-    return colors[spot.name.codeUnitAt(0) % colors.length];
-  }
-
   @override
   Widget build(BuildContext context) {
     final sticker = spot.representativeSticker;
-    final dbColor = AppColors.dbColor(spot.averageDb);
-    final firstChar = spot.name.isNotEmpty ? spot.name[0] : '?';
+    final dbColor = spot.reportCount == 0
+        ? const Color(0xFFBBBBBB)
+        : AppColors.dbColor(spot.averageDb);
     final distLabel = _distanceLabel();
 
     return Container(
@@ -366,18 +354,15 @@ class _CafeListTile extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: _avatarColor(),
+            color: dbColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: dbColor.withValues(alpha: 0.35),
+              width: 1.5,
+            ),
           ),
           child: Center(
-            child: Text(
-              firstChar,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF444444),
-              ),
-            ),
+            child: Icon(Icons.local_cafe_rounded, size: 22, color: dbColor),
           ),
         ),
         title: Text(

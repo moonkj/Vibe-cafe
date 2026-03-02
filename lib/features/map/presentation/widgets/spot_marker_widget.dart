@@ -148,8 +148,9 @@ class SpotMarkerWidget extends StatelessWidget {
     final picture = recorder.endRecording();
     final img = await picture.toImage(canvasW.ceil(), canvasH.ceil());
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null) throw StateError('toBitmapDescriptor: toByteData returned null');
     return BitmapDescriptor.bytes(
-      byteData!.buffer.asUint8List(),
+      byteData.buffer.asUint8List(),
       imagePixelRatio: pixelRatio,
     );
   }

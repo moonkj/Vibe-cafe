@@ -31,6 +31,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     with WidgetsBindingObserver {
   bool _micGranted = false;
   bool _locationGranted = false;
+  bool _permCheckInFlight = false;
 
   @override
   void initState() {
@@ -75,6 +76,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }
 
   Future<void> _checkPermissions() async {
+    if (_permCheckInFlight) return;
+    _permCheckInFlight = true;
+    try {
     // Use AVCaptureDevice.authorizationStatus(for: .audio) via native channel —
     // most reliable across all iOS versions including iOS 26 beta.
     final micGranted = await _checkMicNative();
@@ -96,6 +100,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         _micGranted = micGranted;
         _locationGranted = locGranted;
       });
+    }
+    } finally {
+      _permCheckInFlight = false;
     }
   }
 
