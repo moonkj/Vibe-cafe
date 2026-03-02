@@ -65,6 +65,25 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     }
   }
 
+  Future<void> _onKakao() async {
+    await ref.read(nicknameProvider.notifier).resetAllLive();
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).signInWithKakao();
+      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Kakao 로그인에 실패했어요. 다시 시도해 주세요.';
+        });
+      }
+    }
+  }
+
   Future<void> _onGoogle() async {
     await ref.read(nicknameProvider.notifier).resetAllLive(); // clear stale nickname (SharedPreferences + in-memory state)
     setState(() {
@@ -195,6 +214,40 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   backgroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Kakao Sign In
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: ElevatedButton(
+                                onPressed: _onKakao,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFFEE500),
+                                  foregroundColor: const Color(0xFF191919),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      '💬',
+                                      style: TextStyle(fontSize: 18),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      '카카오로 계속하기',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
