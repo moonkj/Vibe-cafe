@@ -24,6 +24,15 @@ class NicknameNotifier extends Notifier<String?> {
     await p.remove(_promptKey);
   }
 
+  /// Clears nickname + prompt flag AND updates in-memory Riverpod state.
+  /// Use via ref (e.g. before social sign-in) so UI reflects the change immediately.
+  Future<void> resetAllLive() async {
+    final p = await SharedPreferences.getInstance();
+    await p.remove(_key);
+    await p.remove(_promptKey);
+    state = null;
+  }
+
   @override
   String? build() {
     // Load asynchronously after build returns null (initial state).

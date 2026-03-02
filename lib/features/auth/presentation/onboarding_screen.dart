@@ -47,7 +47,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   }
 
   Future<void> _onApple() async {
-    await NicknameNotifier.resetAll(); // clear stale local nickname from previous session
+    await ref.read(nicknameProvider.notifier).resetAllLive(); // clear stale nickname (SharedPreferences + in-memory state)
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -66,7 +66,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   }
 
   Future<void> _onGoogle() async {
-    await NicknameNotifier.resetAll(); // clear stale local nickname from previous session
+    await ref.read(nicknameProvider.notifier).resetAllLive(); // clear stale nickname (SharedPreferences + in-memory state)
     setState(() {
       _isLoading = true;
       _errorMessage = null;
