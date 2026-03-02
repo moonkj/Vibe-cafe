@@ -6,9 +6,9 @@ void main() {
   group('ReportState — 기본값 및 copyWith', () {
     test('기본 상태 값 확인', () {
       const state = ReportState();
-      expect(state.currentDb, 0.0);
+      expect(state.currentDb, 30.0);   // 기본값 30.0 (UI 초기 표시용)
       expect(state.stableDb, 0.0);
-      expect(state.phase, ReportPhase.measuring);
+      expect(state.phase, ReportPhase.idle);  // 초기 상태는 idle
       expect(state.selectedSticker, isNull);
       expect(state.errorMessage, isNull);
     });
@@ -18,15 +18,21 @@ void main() {
       final updated = state.copyWith(currentDb: 65.5);
       expect(updated.currentDb, 65.5);
       expect(updated.stableDb, 0.0);
-      expect(updated.phase, ReportPhase.measuring);
+      expect(updated.phase, ReportPhase.idle);
       expect(updated.selectedSticker, isNull);
     });
 
-    test('copyWith — phase measuring → stabilizing', () {
+    test('copyWith — phase idle → measuring', () {
       const state = ReportState();
+      final measuring = state.copyWith(phase: ReportPhase.measuring);
+      expect(measuring.phase, ReportPhase.measuring);
+      expect(measuring.currentDb, 30.0); // 변경 안 됨
+    });
+
+    test('copyWith — phase measuring → stabilizing', () {
+      const state = ReportState(phase: ReportPhase.measuring);
       final stabilizing = state.copyWith(phase: ReportPhase.stabilizing);
       expect(stabilizing.phase, ReportPhase.stabilizing);
-      expect(stabilizing.currentDb, 0.0); // 변경 안 됨
     });
 
     test('copyWith — stableDb + stickerSelection 단계 전환', () {
@@ -83,10 +89,10 @@ void main() {
       );
       final recovered = state.copyWith(
         clearError: true,
-        phase: ReportPhase.measuring,
+        phase: ReportPhase.idle,
       );
       expect(recovered.errorMessage, isNull);
-      expect(recovered.phase, ReportPhase.measuring);
+      expect(recovered.phase, ReportPhase.idle);
     });
 
     test('copyWith — clearError=false면 기존 errorMessage 유지', () {
@@ -114,10 +120,11 @@ void main() {
     });
   });
 
-  group('ReportPhase 열거형 — 6개 단계', () {
-    test('모든 단계가 순서대로 정의됐다', () {
-      expect(ReportPhase.values.length, 6);
+  group('ReportPhase 열거형 — 7개 단계', () {
+    test('모든 단계가 정의됐다', () {
+      expect(ReportPhase.values.length, 7);
       expect(ReportPhase.values, containsAll([
+        ReportPhase.idle,
         ReportPhase.measuring,
         ReportPhase.stabilizing,
         ReportPhase.stickerSelection,
@@ -127,8 +134,8 @@ void main() {
       ]));
     });
 
-    test('measuring이 첫 번째 단계다', () {
-      expect(ReportPhase.values.first, ReportPhase.measuring);
+    test('idle이 첫 번째 단계다', () {
+      expect(ReportPhase.values.first, ReportPhase.idle);
     });
   });
 

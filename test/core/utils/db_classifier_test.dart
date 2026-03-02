@@ -32,12 +32,12 @@ void main() {
 
   group('DbClassifier.labelFromDb', () {
     test('경계값 레이블 정확성', () {
-      expect(DbClassifier.labelFromDb(0.0), '매우 조용');
-      expect(DbClassifier.labelFromDb(39.9), '매우 조용');
-      expect(DbClassifier.labelFromDb(40.0), '조용함');
-      expect(DbClassifier.labelFromDb(55.0), '보통');
-      expect(DbClassifier.labelFromDb(70.0), '시끄러움');
-      expect(DbClassifier.labelFromDb(85.0), '매우 시끄러움');
+      expect(DbClassifier.labelFromDb(0.0), '마음이 내려앉는 고요');
+      expect(DbClassifier.labelFromDb(39.9), '마음이 내려앉는 고요');
+      expect(DbClassifier.labelFromDb(40.0), '편안히 머물기 좋은 소리');
+      expect(DbClassifier.labelFromDb(55.0), '기분 좋은 활기가 도는');
+      expect(DbClassifier.labelFromDb(70.0), '대화가 겹치는 소란함');
+      expect(DbClassifier.labelFromDb(85.0), '귀와 머리가 붕 뜨는 소음');
     });
   });
 

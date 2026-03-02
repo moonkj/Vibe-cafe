@@ -6,7 +6,8 @@ void main() {
   const baseLat = 37.5759;
   const baseLng = 126.9769;
 
-  group('LocationService.isWithinReportRadius — Haversine 100m 게이트', () {
+  // reportMaxDistanceMeters = 50m (MapConstants.reportMaxDistanceMeters)
+  group('LocationService.isWithinReportRadius — Haversine 50m 게이트', () {
     test('동일한 위치(0m)는 반경 내에 있다', () {
       expect(
         LocationService.isWithinReportRadius(
@@ -17,40 +18,40 @@ void main() {
       );
     });
 
-    test('약 50m 북쪽은 반경 내에 있다', () {
-      // 50m ≈ 0.000450° 위도 차이
+    test('약 22m 북쪽은 반경 내에 있다 (50m 한계 내)', () {
+      // 22m ≈ 0.000198° 위도 차이
       expect(
         LocationService.isWithinReportRadius(
           userLat: baseLat, userLng: baseLng,
-          targetLat: baseLat + 0.000450, targetLng: baseLng,
+          targetLat: baseLat + 0.000198, targetLng: baseLng,
         ),
         isTrue,
       );
     });
 
-    test('약 89m(100m 미만)는 반경 내에 있다', () {
-      // 89m ≈ 0.000801° 위도 차이
+    test('약 49m(50m 미만)는 반경 내에 있다', () {
+      // 49m ≈ 0.000441° 위도 차이
       expect(
         LocationService.isWithinReportRadius(
           userLat: baseLat, userLng: baseLng,
-          targetLat: baseLat + 0.000801, targetLng: baseLng,
+          targetLat: baseLat + 0.000441, targetLng: baseLng,
         ),
         isTrue,
       );
     });
 
-    test('약 122m(100m 초과)는 반경 밖에 있다', () {
-      // 122m ≈ 0.001098° 위도 차이
+    test('약 55m(50m 초과)는 반경 밖에 있다', () {
+      // 55m ≈ 0.000495° 위도 차이
       expect(
         LocationService.isWithinReportRadius(
           userLat: baseLat, userLng: baseLng,
-          targetLat: baseLat + 0.001098, targetLng: baseLng,
+          targetLat: baseLat + 0.000495, targetLng: baseLng,
         ),
         isFalse,
       );
     });
 
-    test('약 200m(2배)는 반경 밖에 있다', () {
+    test('약 200m(4배)는 반경 밖에 있다', () {
       // 200m ≈ 0.001800° 위도 차이
       expect(
         LocationService.isWithinReportRadius(
@@ -73,38 +74,52 @@ void main() {
       );
     });
 
-    test('경도 방향 이동 — 약 83m(위도 37° 기준)는 반경 내에 있다', () {
-      // 위도 37°에서 경도 1° ≈ 88,750m
-      // 83m ≈ 0.000936° 경도 차이
+    test('경도 방향 이동 — 약 40m(위도 37° 기준)는 반경 내에 있다', () {
+      // 위도 37°에서 경도 1° ≈ 88,000m
+      // 40m ≈ 0.000455° 경도 차이
       expect(
         LocationService.isWithinReportRadius(
           userLat: baseLat, userLng: baseLng,
-          targetLat: baseLat, targetLng: baseLng + 0.000936,
+          targetLat: baseLat, targetLng: baseLng + 0.000455,
         ),
         isTrue,
       );
     });
 
-    test('경도 방향 이동 — 약 112m는 반경 밖에 있다', () {
-      // 112m ≈ 0.001263° 경도 차이
+    test('경도 방향 이동 — 약 70m는 반경 밖에 있다', () {
+      // 70m ≈ 0.000795° 경도 차이
       expect(
         LocationService.isWithinReportRadius(
           userLat: baseLat, userLng: baseLng,
-          targetLat: baseLat, targetLng: baseLng + 0.001263,
+          targetLat: baseLat, targetLng: baseLng + 0.000795,
         ),
         isFalse,
       );
     });
 
-    test('대각선 이동(북동)도 Haversine으로 정확히 판단된다', () {
-      // 50m 북 + 50m 동 → 합산 약 70.7m → 반경 내
+    test('대각선 이동(북동) — 약 22m 북 + 22m 동 ≈ 31m → 반경 내', () {
+      // 22m 북 ≈ 0.000198°, 22m 동 ≈ 0.000250°
+      // 합산 약 31m → 50m 이내
       expect(
         LocationService.isWithinReportRadius(
           userLat: baseLat, userLng: baseLng,
-          targetLat: baseLat + 0.000450,
-          targetLng: baseLng + 0.000561, // 50m @ 37° lat
+          targetLat: baseLat + 0.000198,
+          targetLng: baseLng + 0.000250,
         ),
         isTrue,
+      );
+    });
+
+    test('대각선 이동(북동) — 약 40m 북 + 40m 동 ≈ 56.6m → 반경 밖', () {
+      // 40m 북 ≈ 0.000360°, 40m 동 ≈ 0.000455°
+      // 합산 약 56.6m → 50m 초과
+      expect(
+        LocationService.isWithinReportRadius(
+          userLat: baseLat, userLng: baseLng,
+          targetLat: baseLat + 0.000360,
+          targetLng: baseLng + 0.000455,
+        ),
+        isFalse,
       );
     });
   });
