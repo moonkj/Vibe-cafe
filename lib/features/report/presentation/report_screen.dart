@@ -4,9 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/services/badge_service.dart';
 import '../../../core/services/moderation_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/content_filter.dart';
 import '../../map/domain/spot_model.dart';
+import '../../profile/presentation/widgets/badge_earned_popup.dart';
+import '../data/report_repository.dart';
 import 'report_controller.dart';
 import 'widgets/db_meter_widget.dart';
 import 'widgets/privacy_notice_bar.dart';
@@ -35,6 +39,7 @@ class ReportScreen extends ConsumerStatefulWidget {
 class _ReportScreenState extends ConsumerState<ReportScreen> {
   late final TextEditingController _nameController;
   bool _isCheckingLocation = false;
+  bool _badgeCheckDone = false; // prevent duplicate checks
 
   bool get _isNewSpot => widget.spotId == null || widget.spotId!.isEmpty;
 
@@ -66,9 +71,41 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     super.dispose();
   }
 
+  /// Check and award badges after a successful report submission.
+  /// Shows popup for each newly earned badge sequentially.
+  Future<void> _checkBadgesAfterSubmit() async {
+    try {
+      final repo = ref.read(reportRepositoryProvider);
+      final client = ref.read(supabaseClientProvider);
+      final (badgeStats, earnedIds) = await repo.getMyBadgeStats();
+      final newBadges = await BadgeService.checkAndAward(
+        client: client,
+        stats: badgeStats,
+        earnedIds: earnedIds,
+      );
+      if (!mounted) return;
+      for (final badge in newBadges) {
+        await showBadgeEarnedPopup(context, badge);
+        if (!mounted) return;
+      }
+    } catch (_) {
+      // Badge check failure must never affect the report flow
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(reportControllerProvider);
+
+    // Trigger badge check once when report is successfully submitted
+    ref.listen<ReportState>(reportControllerProvider, (prev, next) {
+      if (prev?.phase != ReportPhase.done &&
+          next.phase == ReportPhase.done &&
+          !_badgeCheckDone) {
+        _badgeCheckDone = true;
+        _checkBadgesAfterSubmit();
+      }
+    });
 
     return Scaffold(
       backgroundColor: AppColors.bgWhite,

@@ -17,11 +17,16 @@ class BadgeDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final unlocked = badges.where((b) => b.unlocked).toList();
-    final locked = badges.where((b) => !b.unlocked).toList();
+    final unlockedCount = badges.where((b) => b.unlocked).length;
+
+    // Group by category (preserving enum order)
+    final Map<BadgeCategory, List<BadgeInfo>> byCategory = {};
+    for (final b in badges) {
+      byCategory.putIfAbsent(b.category, () => []).add(b);
+    }
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.75,
+      initialChildSize: 0.85,
       minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (context, scrollController) {
@@ -66,7 +71,7 @@ class BadgeDetailSheet extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        '${unlocked.length} / ${badges.length} 획득',
+                        '$unlockedCount / ${badges.length} 획득',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -77,32 +82,39 @@ class BadgeDetailSheet extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
 
-              // Scrollable content
+              // Overall progress bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: badges.isEmpty ? 0 : unlockedCount / badges.length,
+                    color: AppColors.mintGreen,
+                    backgroundColor: AppColors.mintGreen.withValues(alpha: 0.12),
+                    minHeight: 6,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Badges grouped by category
               Expanded(
                 child: ListView(
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
                   children: [
-                    if (unlocked.isNotEmpty) ...[
-                      _SectionHeader(
-                        icon: '✅',
-                        label: '획득한 뱃지',
-                        count: unlocked.length,
-                      ),
-                      const SizedBox(height: 12),
-                      ...unlocked.map((b) => _BadgeCard(badge: b)),
-                      const SizedBox(height: 24),
-                    ],
-                    if (locked.isNotEmpty) ...[
-                      _SectionHeader(
-                        icon: '🔒',
-                        label: '아직 잠긴 뱃지',
-                        count: locked.length,
-                      ),
-                      const SizedBox(height: 12),
-                      ...locked.map((b) => _BadgeCard(badge: b)),
+                    for (final category in BadgeCategory.values) ...[
+                      if (byCategory[category] != null) ...[
+                        _CategoryHeader(
+                          category: category,
+                          badges: byCategory[category]!,
+                        ),
+                        const SizedBox(height: 10),
+                        ...byCategory[category]!.map((b) => _BadgeCard(badge: b)),
+                        const SizedBox(height: 20),
+                      ],
                     ],
                   ],
                 ),
@@ -115,21 +127,24 @@ class BadgeDetailSheet extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  final String icon;
-  final String label;
-  final int count;
-  const _SectionHeader(
-      {required this.icon, required this.label, required this.count});
+// ──────────────────────────────────────────────────────────────
+// Category header row
+// ──────────────────────────────────────────────────────────────
+
+class _CategoryHeader extends StatelessWidget {
+  final BadgeCategory category;
+  final List<BadgeInfo> badges;
+  const _CategoryHeader({required this.category, required this.badges});
 
   @override
   Widget build(BuildContext context) {
+    final unlocked = badges.where((b) => b.unlocked).length;
     return Row(
       children: [
-        Text(icon, style: const TextStyle(fontSize: 16)),
-        const SizedBox(width: 6),
+        Text(category.emoji, style: const TextStyle(fontSize: 18)),
+        const SizedBox(width: 8),
         Text(
-          label,
+          category.label,
           style: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
@@ -138,16 +153,17 @@ class _SectionHeader extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          '$count개',
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.grey.shade500,
-          ),
+          '$unlocked/${badges.length}',
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
         ),
       ],
     );
   }
 }
+
+// ──────────────────────────────────────────────────────────────
+// Badge card
+// ──────────────────────────────────────────────────────────────
 
 class _BadgeCard extends StatelessWidget {
   final BadgeInfo badge;
@@ -223,41 +239,58 @@ class _BadgeCard extends StatelessWidget {
               ],
             ),
           ),
-          // Status badge
-          if (badge.unlocked)
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.mintGreen,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Text(
-                '획득',
+          const SizedBox(width: 8),
+          // Status + XP
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (badge.unlocked)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.mintGreen,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    '획득',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '미획득',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade400,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 4),
+              Text(
+                '+${badge.xpReward} XP',
                 style: TextStyle(
                   fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  color: badge.unlocked
+                      ? AppColors.mintGreen
+                      : Colors.grey.shade400,
                 ),
               ),
-            )
-          else
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '미획득',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade400,
-                ),
-              ),
-            ),
+            ],
+          ),
         ],
       ),
     );

@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/badge_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/db_classifier.dart';
 import '../../../features/map/domain/spot_model.dart';
+import '../../../features/profile/presentation/widgets/badge_earned_popup.dart';
 import '../../../features/report/data/report_repository.dart';
 
 // ──────────────────────────────────────────────────────────────
@@ -61,12 +64,38 @@ List<String> _deriveVibeTags(SpotModel spot) {
 // SpotDetailScreen
 // ──────────────────────────────────────────────────────────────
 
-class SpotDetailScreen extends ConsumerWidget {
+class SpotDetailScreen extends ConsumerStatefulWidget {
   final SpotModel spot;
   const SpotDetailScreen({super.key, required this.spot});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SpotDetailScreen> createState() => _SpotDetailScreenState();
+}
+
+class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Award B04 (카페 상세 첫 방문) if not yet earned
+    WidgetsBinding.instance.addPostFrameCallback((_) => _awardB04());
+  }
+
+  Future<void> _awardB04() async {
+    try {
+      final client = ref.read(supabaseClientProvider);
+      final badge = await BadgeService.awardInstantBadge(
+        client: client,
+        badgeId: 'B04',
+      );
+      if (badge != null && mounted) {
+        await showBadgeEarnedPopup(context, badge);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final spot = widget.spot;
     final dbColor = DbClassifier.colorFromDb(spot.averageDb);
     final hourlyAsync = ref.watch(_hourlyNoiseProvider(spot.id));
     final recentAsync = ref.watch(_recentReportsProvider(spot.id));

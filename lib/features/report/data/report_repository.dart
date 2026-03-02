@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/utils/level_service.dart';
 import '../../map/domain/spot_model.dart';
 import '../domain/report_model.dart';
 
@@ -212,6 +213,271 @@ class ReportRepository {
 
     return profileResp?['nickname'] as String? ?? '익명';
   }
+
+  // ──────────────────────────────────────────────────────────
+  // Badge stats
+  // ──────────────────────────────────────────────────────────
+
+  /// Fetch all data needed to evaluate 30 badges.
+  /// Returns (BadgeStats, earnedBadgeIds).
+  Future<(BadgeStats, Set<String>)> getMyBadgeStats() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return (BadgeStats.empty(), <String>{});
+
+    // Run all queries concurrently
+    final results = await Future.wait([
+      // 0: all reports (spot_id, measured_db, selected_sticker, tag_text, created_at)
+      _client
+          .from('reports')
+          .select('spot_id, measured_db, selected_sticker, tag_text, created_at')
+          .eq('user_id', userId)
+          .order('created_at', ascending: true)
+          .limit(2000),
+      // 1: earned badge IDs
+      _client
+          .from('user_badges')
+          .select('badge_id')
+          .eq('user_id', userId),
+    ]);
+
+    final reports = (results[0] as List).cast<Map<String, dynamic>>();
+    final earnedIds = (results[1] as List)
+        .cast<Map<String, dynamic>>()
+        .map((r) => r['badge_id'] as String)
+        .toSet();
+
+    if (reports.isEmpty) return (BadgeStats.empty(), earnedIds);
+
+    // Fetch unique spots the user measured
+    final spotIds = reports.map((r) => r['spot_id'] as String).toSet().toList();
+    final spotsRes = await _client
+        .from('spots')
+        .select('id, name, formatted_address, average_db')
+        .inFilter('id', spotIds);
+    final spotsById = {
+      for (final s in (spotsRes as List).cast<Map<String, dynamic>>())
+        s['id'] as String: s,
+    };
+
+    // First reporter count via RPC
+    int firstReporterCount = 0;
+    try {
+      final rpcResult = await _client.rpc(
+        'get_first_reporter_count',
+        params: {'p_user_id': userId},
+      );
+      firstReporterCount = (rpcResult as int?) ?? 0;
+    } catch (_) {}
+
+    return (_computeBadgeStats(
+      reports: reports,
+      spotsById: spotsById,
+      firstReporterCount: firstReporterCount,
+    ), earnedIds);
+  }
+
+  BadgeStats _computeBadgeStats({
+    required List<Map<String, dynamic>> reports,
+    required Map<String, Map<String, dynamic>> spotsById,
+    required int firstReporterCount,
+  }) {
+    final uniqueSpotIds = reports.map((r) => r['spot_id'] as String).toSet();
+
+    final hasFirstMemo = reports.any((r) {
+      final t = r['tag_text'] as String?;
+      return t != null && t.isNotEmpty;
+    });
+    final hasFirstSticker = reports.any((r) => r['selected_sticker'] != null);
+
+    // Streak & date analysis
+    final dates = reports
+        .map((r) => DateTime.parse(r['created_at'] as String).toLocal())
+        .toList();
+    final maxStreakDays = _maxStreak(dates);
+    final monthIn20Reports = _monthIn20(dates);
+
+    // Location analysis per spot
+    final Map<String, String?> spotDistrict = {};
+    final Map<String, String?> spotCity = {};
+    final Map<String, String?> spotChain = {};
+    for (final id in uniqueSpotIds) {
+      final spot = spotsById[id];
+      final name = spot?['name'] as String? ?? '';
+      final addr = spot?['formatted_address'] as String?;
+      spotDistrict[id] = _extractDistrict(addr);
+      spotCity[id] = _extractCity(addr);
+      spotChain[id] = _detectChain(name);
+    }
+
+    // B12: max spots in same district
+    final districtGroups = <String, int>{};
+    for (final id in uniqueSpotIds) {
+      final d = spotDistrict[id];
+      if (d != null) districtGroups[d] = (districtGroups[d] ?? 0) + 1;
+    }
+    final maxNeighborhoodCafes =
+        districtGroups.isEmpty ? 0 : districtGroups.values.reduce((a, b) => a > b ? a : b);
+
+    // B13: max spots from same chain
+    final chainGroups = <String, int>{};
+    for (final id in uniqueSpotIds) {
+      final c = spotChain[id];
+      if (c != null) chainGroups[c] = (chainGroups[c] ?? 0) + 1;
+    }
+    final maxFranchiseCafes =
+        chainGroups.isEmpty ? 0 : chainGroups.values.reduce((a, b) => a > b ? a : b);
+
+    // B14: indie (non-franchise) spots
+    final indieCafeCount = uniqueSpotIds.where((id) => spotChain[id] == null).length;
+
+    // B16: unique cities
+    final uniqueCityCount =
+        uniqueSpotIds.map((id) => spotCity[id]).where((c) => c != null).toSet().length;
+
+    // dB range analysis per spot
+    int quietCafe50Count = 0;
+    int goldenCafeCount = 0;
+    int highCafeCount = 0;
+    int veryQuietCafe40Count = 0;
+    final dbRangeSpotCount = <String, int>{
+      '<40': 0, '40-55': 0, '55-70': 0, '70-85': 0, '85+': 0
+    };
+    for (final id in uniqueSpotIds) {
+      final avgDb = (spotsById[id]?['average_db'] as num?)?.toDouble();
+      if (avgDb == null) continue;
+      if (avgDb < 40) { veryQuietCafe40Count++; dbRangeSpotCount['<40'] = (dbRangeSpotCount['<40'] ?? 0) + 1; }
+      else if (avgDb < 55) { dbRangeSpotCount['40-55'] = (dbRangeSpotCount['40-55'] ?? 0) + 1; }
+      else if (avgDb < 70) { dbRangeSpotCount['55-70'] = (dbRangeSpotCount['55-70'] ?? 0) + 1; }
+      else if (avgDb < 85) { highCafeCount++; dbRangeSpotCount['70-85'] = (dbRangeSpotCount['70-85'] ?? 0) + 1; }
+      else { highCafeCount++; dbRangeSpotCount['85+'] = (dbRangeSpotCount['85+'] ?? 0) + 1; }
+      if (avgDb < 50) quietCafe50Count++;
+      if (avgDb >= 50 && avgDb <= 65) goldenCafeCount++;
+    }
+
+    // B20: distinct spots per measured-dB category
+    final quietMeasuredSpots = <String>{};
+    final midMeasuredSpots = <String>{};
+    final loudMeasuredSpots = <String>{};
+    for (final r in reports) {
+      final db = (r['measured_db'] as num).toDouble();
+      final sid = r['spot_id'] as String;
+      if (db < 50) { quietMeasuredSpots.add(sid); }
+      else if (db <= 70) { midMeasuredSpots.add(sid); }
+      else { loudMeasuredSpots.add(sid); }
+    }
+
+    // Time-based counts
+    int morningReportCount = 0;
+    int nightReportCount = 0;
+    int weekendReportCount = 0;
+    final Map<String, Set<String>> spotsByDay = {};
+    for (int i = 0; i < reports.length; i++) {
+      final d = dates[i];
+      if (d.hour < 9) morningReportCount++;
+      if (d.hour >= 21) nightReportCount++;
+      if (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday) weekendReportCount++;
+      final key = '${d.year}-${d.month}-${d.day}';
+      spotsByDay.putIfAbsent(key, () => {}).add(reports[i]['spot_id'] as String);
+    }
+
+    // B26: max distinct cafes in one day
+    final maxCafesOneDay = spotsByDay.isEmpty
+        ? 0
+        : spotsByDay.values.map((s) => s.length).reduce((a, b) => a > b ? a : b);
+
+    final totalStickerCount = reports.where((r) => r['selected_sticker'] != null).length;
+    final memoReportCount = reports.where((r) {
+      final t = r['tag_text'] as String?;
+      return t != null && t.isNotEmpty;
+    }).length;
+
+    return BadgeStats(
+      totalReports: reports.length,
+      totalCafes: uniqueSpotIds.length,
+      hasFirstMemo: hasFirstMemo,
+      hasFirstSticker: hasFirstSticker,
+      maxStreakDays: maxStreakDays,
+      monthIn20Reports: monthIn20Reports,
+      maxNeighborhoodCafes: maxNeighborhoodCafes,
+      maxFranchiseCafes: maxFranchiseCafes,
+      indieCafeCount: indieCafeCount,
+      firstReporterCount: firstReporterCount,
+      uniqueCityCount: uniqueCityCount,
+      quietCafe50Count: quietCafe50Count,
+      goldenCafeCount: goldenCafeCount,
+      highCafeCount: highCafeCount,
+      quietSpotMeasuredCount: quietMeasuredSpots.length,
+      midSpotMeasuredCount: midMeasuredSpots.length,
+      loudSpotMeasuredCount: loudMeasuredSpots.length,
+      veryQuietCafe40Count: veryQuietCafe40Count,
+      dbRangeSpotCount: dbRangeSpotCount,
+      morningReportCount: morningReportCount,
+      nightReportCount: nightReportCount,
+      weekendReportCount: weekendReportCount,
+      maxCafesOneDay: maxCafesOneDay,
+      totalStickerCount: totalStickerCount,
+      memoReportCount: memoReportCount,
+    );
+  }
+
+  // ── Private helpers ────────────────────────────────────────
+
+  static int _maxStreak(List<DateTime> dates) {
+    if (dates.isEmpty) return 0;
+    final uniqueDays = dates
+        .map((d) => DateTime(d.year, d.month, d.day))
+        .toSet()
+        .toList()
+      ..sort();
+    int maxStreak = 1;
+    int current = 1;
+    for (int i = 1; i < uniqueDays.length; i++) {
+      if (uniqueDays[i].difference(uniqueDays[i - 1]).inDays == 1) {
+        current++;
+        if (current > maxStreak) maxStreak = current;
+      } else {
+        current = 1;
+      }
+    }
+    return maxStreak;
+  }
+
+  static bool _monthIn20(List<DateTime> dates) {
+    final Map<String, int> byMonth = {};
+    for (final d in dates) {
+      final key = '${d.year}-${d.month}';
+      byMonth[key] = (byMonth[key] ?? 0) + 1;
+    }
+    return byMonth.values.any((c) => c >= 20);
+  }
+
+  static String? _extractCity(String? address) {
+    if (address == null || address.trim().isEmpty) return null;
+    return address.trim().split(' ').first;
+  }
+
+  static String? _extractDistrict(String? address) {
+    if (address == null || address.trim().isEmpty) return null;
+    final parts = address.trim().split(' ');
+    if (parts.length < 2) return null;
+    return '${parts[0]} ${parts[1]}';
+  }
+
+  static const List<String> _chains = [
+    '스타벅스', '이디야', '투썸플레이스', '할리스', '커피빈', '파스쿠찌',
+    '요거프레소', '메가커피', '컴포즈커피', '더벤티', '빽다방', '드롭탑',
+    '카페베네', '엔제리너스', '달콤커피', '커피에반하다', '탐앤탐스', '폴바셋',
+    '아티제', '카페모카',
+  ];
+
+  static String? _detectChain(String name) {
+    for (final chain in _chains) {
+      if (name.contains(chain)) return chain;
+    }
+    return null;
+  }
+
+  // ──────────────────────────────────────────────────────────
 
   /// Fetch hourly average dB for a spot over the past 30 days.
   /// Aggregated client-side by hour-of-day.

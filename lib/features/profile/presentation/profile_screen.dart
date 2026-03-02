@@ -10,9 +10,16 @@ import '../../report/domain/report_model.dart';
 import '../data/profile_repository.dart';
 import 'badge_detail_sheet.dart';
 import 'nickname_setup_sheet.dart';
+import 'widgets/level_up_animation.dart';
 
 final _myStatsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
   return ref.watch(reportRepositoryProvider).getMyStats();
+});
+
+/// Returns (BadgeStats, earnedBadgeIds) for the badge section.
+final _badgeDataProvider =
+    FutureProvider.autoDispose<(BadgeStats, Set<String>)>((ref) {
+  return ref.watch(reportRepositoryProvider).getMyBadgeStats();
 });
 
 final _myReportsProvider = FutureProvider.autoDispose<List<ReportModel>>((ref) {
@@ -34,6 +41,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   /// 닉네임 설정 시트가 이미 표시된 적 있는지 추적 (중복 표시 방지)
   bool _sheetShown = false;
+  int _prevLevel = 0;
 
   @override
   void initState() {
@@ -90,6 +98,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       });
     });
 
+    final badgeDataAsync = ref.watch(_badgeDataProvider);
+
+    // Level-up detection: compare prev vs current level after stats load
+    ref.listen(_myStatsProvider, (_, next) {
+      next.whenData((stats) {
+        final totalXp = stats['total_xp'] as int? ?? 0;
+        final newLevel = LevelService.calcLevel(totalXp).level;
+        if (_prevLevel > 0 && newLevel > _prevLevel && mounted) {
+          final lvl = LevelService.calcLevel(totalXp);
+          showLevelUpAnimation(context, lvl);
+        }
+        _prevLevel = newLevel;
+      });
+    });
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6F1),
       body: statsAsync.when(
@@ -100,14 +123,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         data: (stats) {
           final total = stats['total'] as int? ?? 0;
           final totalCafes = stats['total_cafes'] as int? ?? 0;
-          final hasQuietCafe = stats['has_quiet_cafe'] as bool? ?? false;
           final totalXp = stats['total_xp'] as int? ?? 0;
           final level = LevelService.calcLevel(totalXp);
-          final badges = LevelService.calcBadges(
-            totalReports: total,
-            totalCafes: totalCafes,
-            hasQuietCafe: hasQuietCafe,
-          );
+
+          // Resolve badge data (or use empty while loading)
+          final badgeData = badgeDataAsync.asData?.value;
+          final badgeStats = badgeData?.$1 ?? BadgeStats.empty();
+          final earnedIds = badgeData?.$2 ?? <String>{};
+          final badges = LevelService.calcBadges(badgeStats, earnedIds);
 
           return CustomScrollView(
             slivers: [

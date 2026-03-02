@@ -5,12 +5,15 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/admin_config.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/services/badge_service.dart';
 import '../../../core/services/nickname_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../admin/data/cafe_requests_repository.dart';
 import '../../../core/services/places_service.dart';
 import '../../map/data/spots_repository.dart';
 import '../../profile/data/profile_repository.dart';
+import '../../profile/presentation/widgets/badge_earned_popup.dart';
 import '../../../core/services/location_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -429,6 +432,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('요청이 접수되었습니다. 검토 후 추가될 예정입니다.')),
                           );
+                        }
+                        // B29: 피드백 파트너 — award once on first feedback submit
+                        if (context.mounted) {
+                          final client = ref.read(supabaseClientProvider);
+                          final badge = await BadgeService.awardInstantBadge(
+                            client: client,
+                            badgeId: 'B29',
+                          );
+                          if (badge != null && context.mounted) {
+                            await showBadgeEarnedPopup(context, badge);
+                          }
                         }
                       } catch (_) {
                         setSt(() => submitting = false);
