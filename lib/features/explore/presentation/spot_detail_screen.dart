@@ -20,7 +20,7 @@ final _hourlyNoiseProvider = FutureProvider.autoDispose
 final _recentReportsProvider = FutureProvider.autoDispose
     .family<List<Map<String, dynamic>>, String>(
   (ref, spotId) =>
-      ref.read(reportRepositoryProvider).getSpotRecentReports(spotId),
+      ref.read(reportRepositoryProvider).getSpotRecentReports(spotId, limit: 30),
 );
 
 // ──────────────────────────────────────────────────────────────
@@ -38,23 +38,19 @@ String _timeAgo(DateTime? dt) {
 
 List<String> _deriveVibeTags(SpotModel spot) {
   final tags = <String>[];
-  if (spot.averageDb < 45) {
-    tags.add('#조용한');
-  } else if (spot.averageDb < 60) {
-    tags.add('#보통');
-  } else {
-    tags.add('#활기찬');
+  // dB 기반 태그는 스티커가 없을 때만 추가 (스티커와 모순 방지)
+  if (spot.representativeSticker == null) {
+    if (spot.averageDb < 45) {
+      tags.add('#속삭임');
+    } else if (spot.averageDb < 60) {
+      tags.add('#소곤소곤');
+    } else {
+      tags.add('#웅성웅성');
+    }
   }
 
-  switch (spot.representativeSticker) {
-    case StickerType.study:
-      tags.addAll(['#집중하기 좋은', '#작업하기 좋은']);
-    case StickerType.relax:
-      tags.addAll(['#아늑한', '#편안한']);
-    case StickerType.meeting:
-      tags.addAll(['#대화하기 좋은', '#모임']);
-    case null:
-      break;
+  if (spot.representativeSticker != null) {
+    tags.add('#${spot.representativeSticker!.label}');
   }
   if (spot.reportCount >= 20) tags.add('#자주 방문');
   if (spot.trustScore >= 2) tags.add('#신뢰도 높음');
@@ -134,7 +130,7 @@ class SpotDetailScreen extends ConsumerWidget {
 
               // ── Vibe Tags ────────────────────────────────────
               SliverToBoxAdapter(
-                child: _VibeTagsCard(spot: spot),
+                child: _VibeTagsCard(spot: spot, recentAsync: recentAsync),
               ),
 
               // ── Recent Measurements ──────────────────────────
@@ -553,12 +549,32 @@ class _HourlyChartPainter extends CustomPainter {
 
 class _VibeTagsCard extends StatelessWidget {
   final SpotModel spot;
-  const _VibeTagsCard({required this.spot});
+  final AsyncValue<List<Map<String, dynamic>>> recentAsync;
+  const _VibeTagsCard({required this.spot, required this.recentAsync});
+
+  /// Collect unique tag_text values from visitor reports, ordered by frequency.
+  List<String> _visitorTags(List<Map<String, dynamic>> reports) {
+    final freq = <String, int>{};
+    for (final r in reports) {
+      final t = r['tag_text'] as String?;
+      if (t != null && t.trim().isNotEmpty) {
+        freq[t.trim()] = (freq[t.trim()] ?? 0) + 1;
+      }
+    }
+    final sorted = freq.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.map((e) => '#${e.key}').toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final tags = _deriveVibeTags(spot);
-    if (tags.isEmpty) return const SizedBox.shrink();
+    final autoTags = _deriveVibeTags(spot);
+    final visitorTags = recentAsync.asData?.value != null
+        ? _visitorTags(recentAsync.asData!.value)
+        : <String>[];
+
+    final allTags = [...autoTags, ...visitorTags];
+    if (allTags.isEmpty) return const SizedBox.shrink();
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -587,25 +603,45 @@ class _VibeTagsCard extends StatelessWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: tags
-                .map((tag) => Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF5F5F5),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE8E8E8)),
+            children: [
+              // Auto-derived tags (sticker + dB based)
+              ...autoTags.map((tag) => Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F5F5),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFE8E8E8)),
+                    ),
+                    child: Text(
+                      tag,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF444444),
+                        fontWeight: FontWeight.w500,
                       ),
-                      child: Text(
-                        tag,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF444444),
-                          fontWeight: FontWeight.w500,
-                        ),
+                    ),
+                  )),
+              // Visitor-entered tags (mint accent)
+              ...visitorTags.map((tag) => Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.mintGreen.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: AppColors.mintGreen.withValues(alpha: 0.30)),
+                    ),
+                    child: Text(
+                      tag,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.mintGreen,
+                        fontWeight: FontWeight.w500,
                       ),
-                    ))
-                .toList(),
+                    ),
+                  )),
+            ],
           ),
         ],
       ),
@@ -700,22 +736,7 @@ class _RecentReportsCard extends StatelessWidget {
 class _RecentReportTile extends StatelessWidget {
   final Map<String, dynamic> report;
   final Color dbColor;
-  const _RecentReportTile(
-      {required this.report, required this.dbColor});
-
-  Color _avatarColor(String userId) {
-    final colors = [
-      const Color(0xFFBBDEFB),
-      const Color(0xFFB2EBF2),
-      const Color(0xFFDCEDC8),
-      const Color(0xFFFFCCBC),
-      const Color(0xFFE1BEE7),
-      const Color(0xFFFFE0B2),
-    ];
-    final hash = userId.codeUnits
-        .fold(0, (prev, e) => (prev + e) % colors.length);
-    return colors[hash];
-  }
+  const _RecentReportTile({required this.report, required this.dbColor});
 
   @override
   Widget build(BuildContext context) {
@@ -727,89 +748,92 @@ class _RecentReportTile extends StatelessWidget {
     final createdAt = report['created_at'] != null
         ? DateTime.tryParse(report['created_at'] as String)
         : null;
-    final userId = report['user_id'] as String? ?? '';
-    final initial = nickname.isNotEmpty ? nickname[0] : '?';
+    final moodTag = report['mood_tag'] as String?;
+    final tagText = report['tag_text'] as String?;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: _avatarColor(userId),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                initial,
+          // 닉네임 + 스티커/태그 + dB  ···  시간
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                nickname,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF444444),
+                  color: Color(0xFF222222),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      nickname,
-                      style: const TextStyle(
-                        fontSize: 14,
+              // Sticker badge OR custom #tag badge
+              if (sticker != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: dbColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${sticker.emoji} ${sticker.label}',
+                    style: TextStyle(
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF222222),
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      _timeAgo(createdAt),
-                      style: const TextStyle(
-                          fontSize: 12, color: Color(0xFF999999)),
-                    ),
-                  ],
+                        color: dbColor),
+                  ),
                 ),
-                const SizedBox(height: 5),
-                Row(
-                  children: [
-                    if (sticker != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: dbColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          sticker.label,
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: dbColor),
-                        ),
-                      ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${measuredDb.toStringAsFixed(0)}dB',
-                      style: TextStyle(
-                        fontSize: 13,
+              ] else if (tagText != null && tagText.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.mintGreen.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '#$tagText',
+                    style: const TextStyle(
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: dbColor,
-                      ),
-                    ),
-                  ],
+                        color: AppColors.mintGreen),
+                  ),
                 ),
               ],
-            ),
+              const SizedBox(width: 6),
+              Text(
+                '${measuredDb.toStringAsFixed(0)}dB',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: dbColor,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _timeAgo(createdAt),
+                style: const TextStyle(
+                    fontSize: 12, color: Color(0xFF999999)),
+              ),
+            ],
           ),
+          // 방문자 메모
+          if (moodTag != null && moodTag.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(
+              moodTag,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF555555),
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ],
       ),
     );
@@ -852,7 +876,7 @@ class _StickyMeasureButton extends StatelessWidget {
           ),
           icon: const Icon(Icons.graphic_eq, size: 20),
           label: const Text(
-            '소음 측정하기',
+            '바이브 체크하기',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           style: ElevatedButton.styleFrom(

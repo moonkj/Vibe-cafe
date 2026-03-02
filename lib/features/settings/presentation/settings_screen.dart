@@ -11,6 +11,7 @@ import '../../admin/data/cafe_requests_repository.dart';
 import '../../../core/services/places_service.dart';
 import '../../map/data/spots_repository.dart';
 import '../../profile/data/profile_repository.dart';
+import '../../../core/services/location_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -19,14 +20,34 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen>
+    with WidgetsBindingObserver {
   PermissionStatus _micStatus = PermissionStatus.denied;
   PermissionStatus _locationStatus = PermissionStatus.denied;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkPermissions();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Re-check permissions whenever the app returns to foreground.
+  /// Covers the case where the user grants/revokes in iOS Settings.
+  /// The 600ms delay lets iOS propagate the new permission status before querying.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) _checkPermissions();
+      });
+    }
   }
 
   Future<void> _checkPermissions() async {
@@ -201,6 +222,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     subtitle: '직접 등록한 카페 수정 / 삭제',
                     showArrow: true,
                     onTap: () => _showAdminSpotsSheet(context),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.add_location_alt_outlined,
+                    title: '현재 위치 더미 카페 등록',
+                    subtitle: '테스트용 임시 카페',
+                    showArrow: false,
+                    onTap: () => _registerDummySpot(context),
                   ),
                 ],
 
@@ -412,6 +440,73 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _registerDummySpot(BuildContext context) async {
+    final now = DateTime.now();
+    final nameCtrl = TextEditingController(
+      text: '테스트 카페 ${now.hour}:${now.minute.toString().padLeft(2, '0')}',
+    );
+    final messenger = ScaffoldMessenger.of(context);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('더미 카페 등록'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '현재 GPS 위치로 테스트용 카페를 등록합니다.\n"등록된 카페 관리"에서 삭제할 수 있습니다.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(labelText: '카페 이름'),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('등록', style: TextStyle(color: AppColors.mintGreen)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    final name = nameCtrl.text.trim();
+    if (name.isEmpty) return;
+
+    try {
+      final position = await LocationService.getCurrentPosition();
+      final id = await ref.read(spotsRepositoryProvider).createSpot(
+            name: name,
+            googlePlaceId: null,
+            lat: position.latitude,
+            lng: position.longitude,
+          );
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '✓ 등록 완료\nID: ${id.substring(0, 8)}…  |  "등록된 카페 관리"에서 삭제하세요',
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('등록 실패: $e')),
+      );
+    }
   }
 
   void _showAdminSpotsSheet(BuildContext context) {

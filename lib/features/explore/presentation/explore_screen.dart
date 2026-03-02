@@ -37,6 +37,15 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   _SortMode _sortMode = _SortMode.nearest;
   String _searchQuery = '';
 
+  @override
+  void initState() {
+    super.initState();
+    // 탭 진입마다 위치 + 카페 목록 새로고침
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.invalidate(currentPositionProvider);
+    });
+  }
+
   List<SpotModel> _applyFilter(List<SpotModel> spots) {
     var filtered = _activeFilter == null
         ? List<SpotModel>.from(spots)
@@ -68,7 +77,16 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
         error: (e, _) => _ErrorView(onRetry: () => ref.invalidate(_nearbySpotsProvider)),
         data: (spots) {
           final filtered = _applyFilter(spots);
-          return CustomScrollView(
+          return RefreshIndicator(
+            color: AppColors.mintGreen,
+            onRefresh: () async {
+              ref.invalidate(currentPositionProvider);
+              ref.invalidate(_nearbySpotsProvider);
+              await ref
+                  .read(_nearbySpotsProvider.future)
+                  .catchError((_) => <SpotModel>[]);
+            },
+            child: CustomScrollView(
             slivers: [
               SliverPersistentHeader(
                 delegate: _ExploreAppBar(count: filtered.length),
@@ -124,6 +142,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               // bottom padding for nav bar
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
             ],
+            ),
           );
         },
       ),

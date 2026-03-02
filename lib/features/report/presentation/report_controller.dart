@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:noise_meter/noise_meter.dart';
 import '../../../core/constants/map_constants.dart';
 import '../../../core/services/location_service.dart';
@@ -58,6 +59,17 @@ class ReportController extends Notifier<ReportState> {
   int _elapsed = 0;
   final List<double> _recentReadings = [];
 
+  // GPS focused 3-second sampling at measurement start
+  StreamSubscription<Position>? _gpsSub;
+  Timer? _gpsCollectionTimer;
+  final List<Position> _gpsSamples = [];
+  Position? _bestGpsPosition; // resolved after 3s collection window
+
+  // Good GPS quality threshold (matches proximity gate radius)
+  static const double _gpsAccuracyThresholdM = 50.0;
+  // Duration to collect GPS samples when measurement starts
+  static const Duration _gpsCollectionDuration = Duration(seconds: 3);
+
   // Empty string = new spot (will be created on submit)
   String _spotId = '';
   String _spotName = '';
@@ -80,7 +92,8 @@ class ReportController extends Notifier<ReportState> {
     _googlePlaceId = googlePlaceId;
     _spotLat = lat;
     _spotLng = lng;
-    // Reset state for each new report session
+    _bestGpsPosition = null;
+    _gpsSamples.clear();
     state = const ReportState();
   }
 
@@ -97,6 +110,8 @@ class ReportController extends Notifier<ReportState> {
 
   /// Begin dB measurement.
   /// Audio is processed in-memory only — never stored or transmitted.
+  /// GPS sampling starts in parallel for 3 seconds — best accuracy sample
+  /// (horizontalAccuracy ≤ 30m preferred) is cached for proximity checks.
   void startMeasurement() {
     if (state.phase == ReportPhase.measuring || state.phase == ReportPhase.stabilizing) return;
     _elapsed = 0;
@@ -105,6 +120,7 @@ class ReportController extends Notifier<ReportState> {
       _elapsed++;
       state = state.copyWith(elapsedSeconds: _elapsed);
     });
+    _startGpsSampling();
     _meter = NoiseMeter();
 
     _sub = _meter!.noise.listen(
@@ -165,6 +181,83 @@ class ReportController extends Notifier<ReportState> {
     _meter = null; // NoiseMeter released — no audio file ever created
     _recentReadings.clear();
     _stabilizeTimer?.cancel();
+    // Cancel GPS collection stream + timer (keep _bestGpsPosition for submit)
+    _gpsCollectionTimer?.cancel();
+    _gpsCollectionTimer = null;
+    _gpsSub?.cancel();
+    _gpsSub = null;
+    _gpsSamples.clear();
+  }
+
+  /// Focused 3-second GPS sampling at measurement start.
+  /// Collects all incoming position fixes into [_gpsSamples], then after
+  /// [_gpsCollectionDuration] resolves to the best quality sample.
+  ///
+  /// Selection priority:
+  ///   1. Samples with accuracy ≤ [_gpsAccuracyThresholdM] — pick lowest accuracy
+  ///   2. If none qualify, use the best unfiltered sample (graceful fallback)
+  void _startGpsSampling() {
+    _gpsSub?.cancel();
+    _gpsCollectionTimer?.cancel();
+    _bestGpsPosition = null;
+    _gpsSamples.clear();
+
+    Geolocator.checkPermission().then((permission) {
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      _gpsSub = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+          distanceFilter: 0,
+        ),
+      ).listen((pos) {
+        _gpsSamples.add(pos);
+      });
+
+      // After 3 seconds, stop stream and resolve best position
+      _gpsCollectionTimer = Timer(_gpsCollectionDuration, _resolveGpsPosition);
+    });
+  }
+
+  /// Called after the 3-second collection window ends.
+  /// Picks the best GPS sample, preferring high-accuracy fixes.
+  void _resolveGpsPosition() {
+    _gpsSub?.cancel();
+    _gpsSub = null;
+    _gpsCollectionTimer = null;
+
+    if (_gpsSamples.isEmpty) {
+      // No samples — _bestGpsPosition stays null
+      // verifyProximity will fall back to a fresh getCurrentPosition() call
+      return;
+    }
+
+    // Prefer samples within accuracy threshold (≤30m)
+    final goodSamples = _gpsSamples
+        .where((p) => p.accuracy <= _gpsAccuracyThresholdM)
+        .toList();
+
+    // Fall back to all samples if none meet the quality threshold
+    final pool = goodSamples.isNotEmpty ? goodSamples : _gpsSamples;
+
+    // Pick the sample with lowest (best) accuracy value
+    pool.sort((a, b) => a.accuracy.compareTo(b.accuracy));
+    _bestGpsPosition = pool.first;
+
+    assert(() {
+      final quality = goodSamples.isNotEmpty ? '정밀' : '저정밀(fallback)';
+      // ignore: avoid_print
+      print('[GPS] 수집=${_gpsSamples.length}개 '
+          '정밀샘플=${goodSamples.length}개 '
+          '선택=${_bestGpsPosition!.accuracy.toStringAsFixed(1)}m '
+          '품질=$quality');
+      return true;
+    }());
+
+    _gpsSamples.clear();
   }
 
   Future<bool> verifyProximity() async {
@@ -178,7 +271,9 @@ class ReportController extends Notifier<ReportState> {
     }
 
     try {
-      final pos = await LocationService.getCurrentPosition();
+      // Use resolved GPS sample; fall back to a fresh fix if sampling hasn't
+      // completed yet (e.g., called before the 3s window expires at start button)
+      final pos = _bestGpsPosition ?? await LocationService.getCurrentPosition();
       final dist = LocationService.distanceMeters(
         userLat: pos.latitude,
         userLng: pos.longitude,
@@ -190,8 +285,8 @@ class ReportController extends Notifier<ReportState> {
         // ignore: avoid_print
         print('[ReportController] 거리=${dist.toStringAsFixed(1)}m '
             '한도=${MapConstants.reportMaxDistanceMeters}m '
-            'spotLat=$_spotLat spotLng=$_spotLng '
-            'userLat=${pos.latitude} userLng=${pos.longitude} '
+            'accuracy=${pos.accuracy.toStringAsFixed(1)}m '
+            'cached=${_bestGpsPosition != null} '
             'isNear=$isNear');
         return true;
       }());
@@ -206,7 +301,11 @@ class ReportController extends Notifier<ReportState> {
     }
   }
 
-  Future<void> submitWithSticker(StickerType sticker) async {
+  Future<void> submitWithSticker(
+    StickerType? sticker, {
+    String? tagText,
+    String? moodTag,
+  }) async {
     state = state.copyWith(
       selectedSticker: sticker,
       phase: ReportPhase.submitting,
@@ -215,14 +314,14 @@ class ReportController extends Notifier<ReportState> {
     try {
       var spotId = _spotId;
 
-      // New spot: use stored coordinates (from search) or fall back to GPS
+      // New spot: use stored coordinates (from search) or best GPS sample
       if (spotId.isEmpty) {
         final double lat, lng;
         if (_spotLat != null && _spotLng != null) {
           lat = _spotLat!;
           lng = _spotLng!;
         } else {
-          final pos = await LocationService.getCurrentPosition();
+          final pos = _bestGpsPosition ?? await LocationService.getCurrentPosition();
           lat = pos.latitude;
           lng = pos.longitude;
         }
@@ -239,6 +338,8 @@ class ReportController extends Notifier<ReportState> {
             spotId: spotId,
             measuredDb: state.stableDb,
             sticker: sticker,
+            tagText: tagText,
+            moodTag: moodTag,
           );
       state = state.copyWith(phase: ReportPhase.done);
       ReviewService.requestIfEligible().catchError((_) {});

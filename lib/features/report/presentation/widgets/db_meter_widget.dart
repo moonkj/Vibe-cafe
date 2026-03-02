@@ -1,10 +1,10 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../../core/utils/db_classifier.dart';
 
-/// Circular arc gauge with:
-///  - Pulse animation while measuring (outer scale breathe)
-///  - Smooth arc fill interpolation when dB value changes
+/// Ripple-wave dB meter:
+///  - 3 concentric rings expand from center while measuring
+///  - Ring max-radius and color react to current dB level
+///  - Smooth dB value interpolation between readings
 class DbMeterWidget extends StatefulWidget {
   final double currentDb;
   final bool isMeasuring;
@@ -21,38 +21,33 @@ class DbMeterWidget extends StatefulWidget {
 
 class _DbMeterWidgetState extends State<DbMeterWidget>
     with TickerProviderStateMixin {
-  // Pulse: scale 1.0 ↔ 1.045 while measuring
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnim;
+  // Ripple rings: repeating 0→1, 1600ms cycle
+  late AnimationController _rippleController;
 
-  // Arc fill: smoothly lerps from old dB to new dB
-  late AnimationController _arcController;
-  late Animation<double> _arcAnim;
+  // dB value smooth interpolation
+  late AnimationController _dbController;
+  late Animation<double> _dbAnim;
 
   @override
   void initState() {
     super.initState();
 
-    _pulseController = AnimationController(
+    _rippleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    );
-    _pulseAnim = Tween<double>(begin: 1.0, end: 1.045).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+      duration: const Duration(milliseconds: 1600),
     );
 
-    _arcController = AnimationController(
+    _dbController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 350),
     );
-    // Start at initial db; will be re-targeted in didUpdateWidget
-    _arcAnim = Tween<double>(
+    _dbAnim = Tween<double>(
       begin: widget.currentDb,
       end: widget.currentDb,
-    ).animate(CurvedAnimation(parent: _arcController, curve: Curves.easeOut));
+    ).animate(CurvedAnimation(parent: _dbController, curve: Curves.easeOut));
 
     if (widget.isMeasuring) {
-      _pulseController.repeat(reverse: true);
+      _rippleController.repeat();
     }
   }
 
@@ -60,106 +55,103 @@ class _DbMeterWidgetState extends State<DbMeterWidget>
   void didUpdateWidget(DbMeterWidget old) {
     super.didUpdateWidget(old);
 
-    // ── Pulse start / stop ──────────────────────────────
-    if (widget.isMeasuring && !_pulseController.isAnimating) {
-      _pulseController.repeat(reverse: true);
-    } else if (!widget.isMeasuring && _pulseController.isAnimating) {
-      _pulseController.stop();
-      _pulseController.animateTo(
+    // ── Ripple start / stop ──────────────────────────────
+    if (widget.isMeasuring && !_rippleController.isAnimating) {
+      _rippleController.repeat();
+    } else if (!widget.isMeasuring && _rippleController.isAnimating) {
+      _rippleController.stop();
+      _rippleController.animateTo(
         0,
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 400),
         curve: Curves.easeOut,
       );
     }
 
-    // ── Arc smooth interpolation ─────────────────────────
+    // ── dB smooth interpolation ──────────────────────────
     if (old.currentDb != widget.currentDb) {
-      // Capture the current mid-animation value so there's no jump
-      final fromDb = _arcAnim.value;
-      _arcAnim = Tween<double>(begin: fromDb, end: widget.currentDb).animate(
-        CurvedAnimation(parent: _arcController, curve: Curves.easeOut),
+      final fromDb = _dbAnim.value;
+      _dbAnim = Tween<double>(begin: fromDb, end: widget.currentDb).animate(
+        CurvedAnimation(parent: _dbController, curve: Curves.easeOut),
       );
-      _arcController.forward(from: 0);
+      _dbController.forward(from: 0);
     }
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
-    _arcController.dispose();
+    _rippleController.dispose();
+    _dbController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_pulseAnim, _arcAnim]),
+      animation: Listenable.merge([_rippleController, _dbAnim]),
       builder: (context, _) {
-        final animDb = _arcAnim.value;
+        final animDb = _dbAnim.value;
         final color = DbClassifier.colorFromDb(animDb);
         final label = DbClassifier.labelFromDb(animDb);
 
-        return Transform.scale(
-          scale: _pulseAnim.value,
-          child: SizedBox(
-            width: 250,
-            height: 250,
-            child: CustomPaint(
-              painter: _GaugePainter(
-                db: animDb,
-                color: color,
-                isMeasuring: widget.isMeasuring,
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      animDb.toStringAsFixed(0),
+        return SizedBox(
+          width: 260,
+          height: 260,
+          child: CustomPaint(
+            painter: _RipplePainter(
+              progress: _rippleController.value,
+              db: animDb,
+              color: color,
+              isMeasuring: widget.isMeasuring,
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    animDb.toStringAsFixed(0),
+                    style: TextStyle(
+                      fontSize: 60,
+                      fontWeight: FontWeight.w300,
+                      color: widget.isMeasuring
+                          ? color
+                          : const Color(0xFFBDBDBD),
+                      height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'dB',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: widget.isMeasuring
+                          ? color.withValues(alpha: 0.7)
+                          : Colors.grey.shade400,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 5),
+                    decoration: BoxDecoration(
+                      color:
+                          (widget.isMeasuring ? color : Colors.grey.shade400)
+                              .withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      label,
                       style: TextStyle(
-                        fontSize: 60,
-                        fontWeight: FontWeight.w300,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                         color: widget.isMeasuring
                             ? color
-                            : const Color(0xFFBDBDBD),
-                        height: 1.0,
+                            : Colors.grey.shade500,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'dB',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: widget.isMeasuring
-                            ? color.withValues(alpha: 0.7)
-                            : Colors.grey.shade400,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 5),
-                      decoration: BoxDecoration(
-                        color:
-                            (widget.isMeasuring ? color : Colors.grey.shade400)
-                                .withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: widget.isMeasuring
-                              ? color
-                              : Colors.grey.shade500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -170,18 +162,19 @@ class _DbMeterWidgetState extends State<DbMeterWidget>
 }
 
 // ─────────────────────────────────────────────
-// Gauge CustomPainter
-// Arc: 135° → 135°+270° (7:30 → 4:30 o'clock, clockwise)
+// Ripple Painter
+// 3 staggered rings expand from center → fade out
 // ─────────────────────────────────────────────
-class _GaugePainter extends CustomPainter {
+class _RipplePainter extends CustomPainter {
+  final double progress;
   final double db;
   final Color color;
   final bool isMeasuring;
 
-  static const double _startDeg = 135.0;
-  static const double _sweepDeg = 270.0;
+  static const int _rings = 3;
 
-  const _GaugePainter({
+  const _RipplePainter({
+    required this.progress,
     required this.db,
     required this.color,
     required this.isMeasuring,
@@ -190,64 +183,42 @@ class _GaugePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 22;
 
-    final startRad = _startDeg * math.pi / 180;
-    final sweepRad = _sweepDeg * math.pi / 180;
+    // Max ripple radius: maps dB 30→120 to 78→165 px (1.5× original)
+    final normalised = ((db - 30) / 90).clamp(0.0, 1.0);
+    final maxRadius = 78.0 + normalised * 87.0;
 
-    // Background track
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      startRad,
-      sweepRad,
-      false,
-      Paint()
-        ..color = const Color(0xFFE0E0E0)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 9
-        ..strokeCap = StrokeCap.round,
-    );
+    // Center dot — always visible
+    final dotColor = isMeasuring ? color : const Color(0xFFBDBDBD);
+    canvas.drawCircle(center, 5.5, Paint()..color = dotColor);
 
-    // Active fill arc (only while measuring)
-    if (isMeasuring && db > 0) {
-      final normalised = ((db - 30) / 90).clamp(0.02, 1.0);
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        startRad,
-        normalised * sweepRad,
-        false,
+    if (!isMeasuring) return;
+
+    // 3 rings with 1/3 phase offset each
+    for (int i = 0; i < _rings; i++) {
+      final phase = (progress + i / _rings) % 1.0;
+
+      // Apply ease-out so rings decelerate as they expand
+      final easedPhase = 1.0 - (1.0 - phase) * (1.0 - phase);
+
+      final radius = maxRadius * easedPhase;
+      final opacity = (1.0 - phase).clamp(0.0, 1.0);
+
+      canvas.drawCircle(
+        center,
+        radius,
         Paint()
-          ..color = color
+          ..color = color.withValues(alpha: opacity * 0.5)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 9
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-
-    // Tick marks (24 ticks, every 11.25°)
-    final tickPaint = Paint()
-      ..color = Colors.grey.shade300
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
-
-    const tickCount = 24;
-    for (int i = 0; i <= tickCount; i++) {
-      final angle = startRad + (sweepRad / tickCount) * i;
-      final isMajor = i % 6 == 0;
-      final tickLen = isMajor ? 11.0 : 6.0;
-      final outerR = radius - 13;
-      final innerR = outerR - tickLen;
-      canvas.drawLine(
-        Offset(center.dx + outerR * math.cos(angle),
-            center.dy + outerR * math.sin(angle)),
-        Offset(center.dx + innerR * math.cos(angle),
-            center.dy + innerR * math.sin(angle)),
-        tickPaint,
+          ..strokeWidth = 2.2,
       );
     }
   }
 
   @override
-  bool shouldRepaint(_GaugePainter old) =>
-      old.db != db || old.color != color || old.isMeasuring != isMeasuring;
+  bool shouldRepaint(_RipplePainter old) =>
+      old.progress != progress ||
+      old.db != db ||
+      old.color != color ||
+      old.isMeasuring != isMeasuring;
 }

@@ -1,10 +1,18 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/db_classifier.dart';
+import '../../../report/data/report_repository.dart';
 import '../../domain/spot_model.dart';
+
+final _firstReporterProvider =
+    FutureProvider.autoDispose.family<String?, String>(
+  (ref, spotId) =>
+      ref.read(reportRepositoryProvider).getFirstReporterNickname(spotId),
+);
 
 /// Circular spot marker showing dB-based color and trust_score border thickness.
 /// Used for custom Google Maps marker bitmaps via [RepaintBoundary].
@@ -47,7 +55,7 @@ class SpotMarkerWidget extends StatelessWidget {
         text: TextSpan(
           text: name,
           style: TextStyle(
-            color: const Color(0xFF333333),
+            color: Colors.white,
             fontSize: 9.5 * pixelRatio,
             fontWeight: FontWeight.w600,
           ),
@@ -81,7 +89,7 @@ class SpotMarkerWidget extends StatelessWidget {
           ..maskFilter =
               ui.MaskFilter.blur(ui.BlurStyle.normal, 3 * pixelRatio),
       );
-      canvas.drawRRect(pillRect, Paint()..color = Colors.white);
+      canvas.drawRRect(pillRect, Paint()..color = AppColors.mintGreen);
       labelPainter.paint(
         canvas,
         Offset(labelLeft + padH * pixelRatio, padV * pixelRatio),
@@ -181,7 +189,7 @@ class SpotMarkerWidget extends StatelessWidget {
 }
 
 /// Bottom sheet card shown when a spot marker is tapped.
-class SpotInfoCard extends StatelessWidget {
+class SpotInfoCard extends ConsumerWidget {
   final SpotModel spot;
   final VoidCallback onReport;
   final VoidCallback? onDetail;
@@ -189,7 +197,8 @@ class SpotInfoCard extends StatelessWidget {
   const SpotInfoCard({super.key, required this.spot, required this.onReport, this.onDetail});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final firstReporterAsync = ref.watch(_firstReporterProvider(spot.id));
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(20),
@@ -220,28 +229,57 @@ class SpotInfoCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: spot.reportCount == 0
-                      ? const Color(0xFFEEEEEE)
-                      : DbClassifier.colorFromDb(spot.averageDb)
-                          .withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  spot.reportCount == 0
-                      ? '측정 없음'
-                      : '${spot.averageDb.toStringAsFixed(1)} dB',
-                  style: TextStyle(
-                    color: spot.reportCount == 0
-                        ? const Color(0xFF999999)
-                        : DbClassifier.colorFromDb(spot.averageDb),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: spot.reportCount == 0
+                          ? const Color(0xFFEEEEEE)
+                          : DbClassifier.colorFromDb(spot.averageDb)
+                              .withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      spot.reportCount == 0
+                          ? '측정 없음'
+                          : '${spot.averageDb.toStringAsFixed(1)} dB',
+                      style: TextStyle(
+                        color: spot.reportCount == 0
+                            ? const Color(0xFF999999)
+                            : DbClassifier.colorFromDb(spot.averageDb),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
-                ),
+                  if (spot.reportCount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, right: 2),
+                      child: firstReporterAsync.when(
+                        data: (name) => name == null
+                            ? const SizedBox.shrink()
+                            : Text(
+                                '첫 측정: $name',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.mintGreen,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                        loading: () => const SizedBox(
+                          width: 14, height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: AppColors.mintGreen,
+                          ),
+                        ),
+                        error: (e, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+                ],
               ),
             ],
           ),

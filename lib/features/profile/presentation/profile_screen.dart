@@ -8,6 +8,7 @@ import '../../map/domain/spot_model.dart';
 import '../../report/data/report_repository.dart';
 import '../../report/domain/report_model.dart';
 import '../data/profile_repository.dart';
+import 'badge_detail_sheet.dart';
 import 'nickname_setup_sheet.dart';
 
 final _myStatsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
@@ -100,8 +101,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           final total = stats['total'] as int? ?? 0;
           final totalCafes = stats['total_cafes'] as int? ?? 0;
           final hasQuietCafe = stats['has_quiet_cafe'] as bool? ?? false;
-          final level = LevelService.calcLevel(total);
-          final points = LevelService.calcPoints(total, totalCafes);
+          final totalXp = stats['total_xp'] as int? ?? 0;
+          final level = LevelService.calcLevel(totalXp);
           final badges = LevelService.calcBadges(
             totalReports: total,
             totalCafes: totalCafes,
@@ -144,7 +145,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       const SizedBox(height: 12),
                       _LevelCard(level: level),
                       const SizedBox(height: 12),
-                      _StatsRow(total: total, totalCafes: totalCafes, points: points),
+                      _StatsRow(total: total, totalCafes: totalCafes, totalXp: totalXp),
                       const SizedBox(height: 16),
                       _BadgeSection(badges: badges),
                       const SizedBox(height: 20),
@@ -261,13 +262,20 @@ class _ProfileHeader extends StatelessWidget {
                     color: AppColors.mintGreen.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
-                    'Lv.${level.level} ${level.name}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.mintGreen,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(level.icon, style: const TextStyle(fontSize: 12)),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Lv.${level.level} ${level.name}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.mintGreen,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -286,12 +294,8 @@ class _LevelCard extends StatelessWidget {
   final UserLevel level;
   const _LevelCard({required this.level});
 
-  static const _levelEmojis = ['☕', '🎧', '🏆', '⭐', '👑'];
-
   @override
   Widget build(BuildContext context) {
-    final emoji = _levelEmojis[(level.level - 1).clamp(0, 4)];
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -310,7 +314,7 @@ class _LevelCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 24)),
+              Text(level.icon, style: const TextStyle(fontSize: 24)),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -327,7 +331,7 @@ class _LevelCard extends StatelessWidget {
                     Text(
                       level.isMax
                           ? '최고 레벨 달성!'
-                          : '다음 레벨까지 ${level.nextTarget - level.current}회',
+                          : '다음 레벨까지 ${level.nextTarget - level.currentXp} XP',
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                     ),
                   ],
@@ -351,11 +355,11 @@ class _LevelCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${level.current}회',
+                  '${level.currentXp} XP',
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                 ),
                 Text(
-                  '${level.nextTarget}회',
+                  '${level.nextTarget} XP',
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                 ),
               ],
@@ -373,9 +377,9 @@ class _LevelCard extends StatelessWidget {
 class _StatsRow extends StatelessWidget {
   final int total;
   final int totalCafes;
-  final int points;
+  final int totalXp;
 
-  const _StatsRow({required this.total, required this.totalCafes, required this.points});
+  const _StatsRow({required this.total, required this.totalCafes, required this.totalXp});
 
   @override
   Widget build(BuildContext context) {
@@ -396,8 +400,8 @@ class _StatsRow extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         _StatCard(
-          label: '획득 포인트',
-          value: '${points}P',
+          label: '누적 XP',
+          value: '$totalXp XP',
           icon: Icons.stars_rounded,
           color: AppColors.skyBlue,
         ),
@@ -468,16 +472,41 @@ class _BadgeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final unlockedCount = badges.where((b) => b.unlocked).length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '획득 뱃지',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF1A1A1A),
-          ),
+        Row(
+          children: [
+            const Text(
+              '획득 뱃지',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1A1A1A),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$unlockedCount / ${badges.length}',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade500,
+              ),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => showBadgeDetailSheet(context, badges),
+              child: const Text(
+                '전체보기',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.mintGreen,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         SizedBox(
@@ -486,7 +515,10 @@ class _BadgeSection extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             itemCount: badges.length,
             separatorBuilder: (ctx, i) => const SizedBox(width: 8),
-            itemBuilder: (ctx, i) => _BadgeTile(badge: badges[i]),
+            itemBuilder: (ctx, i) => _BadgeTile(
+              badge: badges[i],
+              onTap: () => showBadgeDetailSheet(context, badges),
+            ),
           ),
         ),
       ],
@@ -496,51 +528,55 @@ class _BadgeSection extends StatelessWidget {
 
 class _BadgeTile extends StatelessWidget {
   final BadgeInfo badge;
-  const _BadgeTile({required this.badge});
+  final VoidCallback onTap;
+  const _BadgeTile({required this.badge, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 80,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: badge.unlocked ? Colors.white : const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: badge.unlocked
-              ? AppColors.mintGreen.withValues(alpha: 0.3)
-              : Colors.grey.shade200,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 80,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: badge.unlocked ? Colors.white : const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: badge.unlocked
+                ? AppColors.mintGreen.withValues(alpha: 0.3)
+                : Colors.grey.shade200,
+          ),
+          boxShadow: badge.unlocked
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
-        boxShadow: badge.unlocked
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            badge.unlocked ? badge.emoji : '🔒',
-            style: const TextStyle(fontSize: 24),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            badge.label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: badge.unlocked ? const Color(0xFF1A1A1A) : Colors.grey.shade400,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              badge.unlocked ? badge.emoji : '🔒',
+              style: const TextStyle(fontSize: 24),
             ),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              badge.label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: badge.unlocked ? const Color(0xFF1A1A1A) : Colors.grey.shade400,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -613,28 +649,58 @@ class _ReportTile extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: dbColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        report.selectedSticker.label,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: dbColor,
-                          fontWeight: FontWeight.w600,
+                    if (report.selectedSticker != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: dbColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${report.selectedSticker!.emoji} ${report.selectedSticker!.label}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: dbColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    else if (report.tagText != null && report.tagText!.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.mintGreen.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '#${report.tagText}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.mintGreen,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
+                    const Spacer(),
                     Text(
                       _timeAgo(report.createdAt),
                       style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                     ),
                   ],
                 ),
+                if (report.moodTag != null && report.moodTag!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '"${report.moodTag}"',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ],
             ),
           ),

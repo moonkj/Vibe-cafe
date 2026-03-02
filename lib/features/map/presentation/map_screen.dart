@@ -41,8 +41,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   SpotDisplayMode _lastDisplayMode = SpotDisplayMode.hidden;
   bool _hasMovedToUser = false;
 
-  static const _cloudMapId = 'd3c574b4a49a45dc1dbda511';
-
   static const _initialCamera = CameraPosition(
     target: LatLng(MapConstants.defaultLat, MapConstants.defaultLng),
     zoom: MapConstants.defaultZoom,
@@ -101,7 +99,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           // Google Map
           GoogleMap(
             initialCameraPosition: _initialCamera,
-            cloudMapId: _cloudMapId,
             myLocationEnabled: true,
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
@@ -160,7 +157,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               mapState.spots.isEmpty &&
               displayMode != SpotDisplayMode.hidden)
             Positioned(
-              bottom: _hasBottomCard ? 228 : 94,
+              bottom: _hasBottomCard ? 320 : 94,
               left: 40,
               right: 40,
               child: Center(
@@ -256,7 +253,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           // FAB: back to current location
           Positioned(
             right: 16,
-            bottom: _hasBottomCard ? 228 : 94,
+            bottom: _hasBottomCard ? 320 : 94,
             child: FloatingActionButton.small(
               onPressed: () {
                 ref.read(mapControllerProvider.notifier).refreshLocation();

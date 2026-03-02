@@ -2,34 +2,105 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/map_constants.dart';
 
-enum StickerType { study, meeting, relax }
+enum StickerType {
+  // 포커스 & 생산성
+  study, work, studyZone, nomad,
+  // 소셜
+  meeting, vibe, date, gathering,
+  // 가족 & 라이프
+  family, relax, healing, cozy,
+  // 감성 스타일
+  insta, retro, minimal, green,
+  // 기타 분위기
+  peak, music,
+}
 
 extension StickerTypeX on StickerType {
   String get key => switch (this) {
-        StickerType.study => 'STUDY',
-        StickerType.meeting => 'MEETING',
-        StickerType.relax => 'RELAX',
+        StickerType.study     => 'STUDY',
+        StickerType.meeting   => 'MEETING',
+        StickerType.relax     => 'RELAX',
+        StickerType.vibe      => 'VIBE',
+        StickerType.healing   => 'HEALING',
+        StickerType.work      => 'WORK',
+        StickerType.studyZone => 'STUDY_ZONE',
+        StickerType.nomad     => 'NOMAD',
+        StickerType.date      => 'DATE',
+        StickerType.gathering => 'GATHERING',
+        StickerType.family    => 'FAMILY',
+        StickerType.cozy      => 'COZY',
+        StickerType.insta     => 'INSTA',
+        StickerType.retro     => 'RETRO',
+        StickerType.minimal   => 'MINIMAL',
+        StickerType.green     => 'GREEN',
+        StickerType.peak      => 'PEAK',
+        StickerType.music     => 'MUSIC',
       };
 
-  /// 앱 UI 표시용 레이블 (DB 값: STUDY/MEETING/RELAX 유지)
   String get label => switch (this) {
-        StickerType.study => '딥 포커스',
-        StickerType.meeting => '소셜 버즈',
-        StickerType.relax => '소프트 바이브',
+        StickerType.study     => '딥 포커스',
+        StickerType.meeting   => '소셜 버즈',
+        StickerType.relax     => '소프트 바이브',
+        StickerType.vibe      => '활기찬 에너지',
+        StickerType.healing   => '힐링 감성',
+        StickerType.work      => '재택 성지',
+        StickerType.studyZone => '조용한 스터디존',
+        StickerType.nomad     => '디지털 노마드',
+        StickerType.date      => '데이트 감성',
+        StickerType.gathering => '동호회·모임',
+        StickerType.family    => '가족·아이 동반',
+        StickerType.cozy      => '코지 감성',
+        StickerType.insta     => '인스타 감성',
+        StickerType.retro     => '레트로 감성',
+        StickerType.minimal   => '미니멀 감성',
+        StickerType.green     => '식물 천국',
+        StickerType.peak      => '피크타임',
+        StickerType.music     => '음악 취향 저격',
       };
 
   /// 필터칩 표시용 (label과 동일)
   String get filterLabel => label;
 
   String get emoji => switch (this) {
-        StickerType.study => '🎧',
-        StickerType.meeting => '💬',
-        StickerType.relax => '☕',
+        StickerType.study     => '🎧',
+        StickerType.meeting   => '💬',
+        StickerType.relax     => '☕',
+        StickerType.vibe      => '⚡',
+        StickerType.healing   => '🌿',
+        StickerType.work      => '💻',
+        StickerType.studyZone => '📖',
+        StickerType.nomad     => '🌐',
+        StickerType.date      => '💕',
+        StickerType.gathering => '🙌',
+        StickerType.family    => '🧸',
+        StickerType.cozy      => '🛋️',
+        StickerType.insta     => '📸',
+        StickerType.retro     => '🎞️',
+        StickerType.minimal   => '🤍',
+        StickerType.green     => '🪴',
+        StickerType.peak      => '🔥',
+        StickerType.music     => '🎵',
       };
 
   static StickerType fromKey(String key) => switch (key.toUpperCase()) {
-        'STUDY' => StickerType.study,
-        'MEETING' => StickerType.meeting,
+        'STUDY'      => StickerType.study,
+        'MEETING'    => StickerType.meeting,
+        'RELAX'      => StickerType.relax,
+        'VIBE'       => StickerType.vibe,
+        'HEALING'    => StickerType.healing,
+        'WORK'       => StickerType.work,
+        'STUDY_ZONE' => StickerType.studyZone,
+        'NOMAD'      => StickerType.nomad,
+        'DATE'       => StickerType.date,
+        'GATHERING'  => StickerType.gathering,
+        'FAMILY'     => StickerType.family,
+        'COZY'       => StickerType.cozy,
+        'INSTA'      => StickerType.insta,
+        'RETRO'      => StickerType.retro,
+        'MINIMAL'    => StickerType.minimal,
+        'GREEN'      => StickerType.green,
+        'PEAK'       => StickerType.peak,
+        'MUSIC'      => StickerType.music,
         _ => StickerType.relax,
       };
 }

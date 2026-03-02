@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/services/moderation_service.dart';
+import '../../../core/utils/content_filter.dart';
 import '../../map/domain/spot_model.dart';
 import 'report_controller.dart';
 import 'widgets/db_meter_widget.dart';
@@ -56,6 +58,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    // Stop mic + GPS streams when leaving the screen (provider is not autoDispose)
+    final phase = ref.read(reportControllerProvider).phase;
+    if (phase == ReportPhase.measuring || phase == ReportPhase.stabilizing) {
+      ref.read(reportControllerProvider.notifier).stopMeasurement();
+    }
     super.dispose();
   }
 
@@ -66,7 +73,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     return Scaffold(
       backgroundColor: AppColors.bgWhite,
       appBar: AppBar(
-        title: const Text('소음 측정'),
+        title: const Text('바이브 체크'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => context.pop(),
@@ -101,12 +108,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
         ),
       ReportPhase.stickerSelection => _StickerView(
           measuredDb: state.stableDb,
-          onSelected: (sticker) async {
+          onSubmit: (sticker, tagText, moodTag) async {
             final controller = ref.read(reportControllerProvider.notifier);
             if (_isNewSpot) controller.updateSpotName(_nameController.text);
 
             final isNear = await controller.verifyProximity();
-            // Guard return OUTSIDE the mounted check so it always runs
             if (!isNear) {
               if (mounted) {
                 await showDialog<void>(
@@ -125,9 +131,14 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
               }
               return;
             }
-            await controller.submitWithSticker(sticker);
+            await controller.submitWithSticker(
+              sticker,
+              tagText: tagText,
+              moodTag: moodTag,
+            );
           },
         ),
+
       ReportPhase.submitting => const Center(
           child: CircularProgressIndicator(color: AppColors.mintGreen),
         ),
@@ -250,7 +261,7 @@ class _IdleView extends StatelessWidget {
       children: [
         const SizedBox(height: 12),
         Text(
-          '버튼을 눌러 측정을 시작하세요',
+          '버튼을 눌러 바이브를 체크하세요',
           style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
         ),
         const SizedBox(height: 32),
@@ -283,7 +294,7 @@ class _MeasuringView extends StatelessWidget {
       children: [
         const SizedBox(height: 12),
         Text(
-          '주변 소리를 측정하고 있어요',
+          '분위기를 감지하고 있어요',
           style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
         ),
         const SizedBox(height: 32),
@@ -316,7 +327,7 @@ class _MeasuringView extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '측정 중 ${_formatElapsed(elapsedSeconds)}',
+                '감지 중 ${_formatElapsed(elapsedSeconds)}',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -365,8 +376,8 @@ class _TipCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           ...[
-            '스마트폰을 테이블 위에 놓아주세요',
-            '30초 이상 측정할수록 정확해요',
+            '스마트폰을 테이블 위에 고정해주세요',
+            '약 10초 내 자동으로 완료돼요',
             '이동 중에는 측정하지 마세요',
           ].map(
             (tip) => Padding(
@@ -431,7 +442,7 @@ class _StartButton extends StatelessWidget {
                 children: [
                   Icon(Icons.graphic_eq_rounded, size: 20),
                   SizedBox(width: 8),
-                  Text('측정 시작',
+                  Text('체크 시작',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 ],
               ),
@@ -452,7 +463,7 @@ class _StopButton extends StatelessWidget {
       child: ElevatedButton.icon(
         onPressed: onTap,
         icon: const Icon(Icons.stop_rounded, size: 20),
-        label: const Text('측정 중지',
+        label: const Text('중지',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF8B3A2A),
@@ -469,16 +480,186 @@ class _StopButton extends StatelessWidget {
 // ─────────────────────────────────────────────
 // Sticker / Done / Error views
 // ─────────────────────────────────────────────
-class _StickerView extends StatelessWidget {
+class _StickerView extends StatefulWidget {
   final double measuredDb;
-  final ValueChanged<StickerType> onSelected;
-  const _StickerView({required this.measuredDb, required this.onSelected});
+  final Future<void> Function(
+      StickerType? sticker, String? tagText, String? moodTag) onSubmit;
+  const _StickerView({required this.measuredDb, required this.onSubmit});
+
+  @override
+  State<_StickerView> createState() => _StickerViewState();
+}
+
+class _StickerViewState extends State<_StickerView> {
+  StickerType? _selected;
+  final _memoCtrl = TextEditingController();
+  bool _submitting = false;
+  String? _apiMemoError; // error returned from Google NL API
+
+  // Layer 1: real-time local filter
+  String? get _memoError => ContentFilter.validate(_memoCtrl.text) ?? _apiMemoError;
+  bool get _canSubmit =>
+      !_submitting && _selected != null && _memoError == null;
+
+  @override
+  void initState() {
+    super.initState();
+    _memoCtrl.addListener(() => setState(() {
+      // Clear API error when user edits the text
+      if (_apiMemoError != null) _apiMemoError = null;
+    }));
+  }
+
+  @override
+  void dispose() {
+    _memoCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: StickerCardGrid(measuredDb: measuredDb, onSelected: onSelected),
+    return Column(
+      children: [
+        // ── Scrollable sticker grid + memo ────────────────────
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                StickerCardGrid(
+                  measuredDb: widget.measuredDb,
+                  selected: _selected,
+                  onSelect: (s) => setState(() => _selected = s),
+                ),
+                const SizedBox(height: 20),
+                _MemoInput(
+                  controller: _memoCtrl,
+                  errorText: _memoError,
+                ),
+              ],
+            ),
+          ),
+        ),
+        // ── Submit button ─────────────────────────────────────
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            child: SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton(
+                onPressed: _canSubmit
+                    ? () async {
+                        setState(() => _submitting = true);
+                        final memo = _memoCtrl.text.trim();
+
+                        // Layer 2: Google NL moderation (runs on submit)
+                        if (memo.isNotEmpty) {
+                          final err = await ModerationService.validate(memo);
+                          if (err != null) {
+                            if (mounted) {
+                              setState(() {
+                                _submitting = false;
+                                _apiMemoError = err;
+                              });
+                            }
+                            return;
+                          }
+                        }
+
+                        await widget.onSubmit(
+                          _selected!,
+                          '#${_selected!.label}',
+                          memo.isEmpty ? null : memo,
+                        );
+                        if (mounted) setState(() => _submitting = false);
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.mintGreen,
+                  disabledBackgroundColor:
+                      AppColors.mintGreen.withValues(alpha: 0.35),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
+                ),
+                child: _submitting
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2.5),
+                      )
+                    : const Text(
+                        '제출하기',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Memo input — optional, max 30 chars with content filter error display
+class _MemoInput extends StatelessWidget {
+  final TextEditingController controller;
+  final String? errorText;
+  const _MemoInput({required this.controller, this.errorText});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasError = errorText != null;
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        final count = value.text.length;
+        return TextField(
+          controller: controller,
+          maxLength: 30,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(
+            labelText: '메모 (선택)',
+            hintText: '예) 창가 자리 분위기 최고',
+            hintStyle: const TextStyle(color: Color(0xFFAAAAAA)),
+            errorText: errorText,
+            errorStyle: const TextStyle(fontSize: 12),
+            counterText: '',
+            suffixText: hasError ? null : '$count/30',
+            suffixStyle: TextStyle(
+              fontSize: 12,
+              color: count >= 30 ? Colors.red : const Color(0xFF999999),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red.shade300 : Colors.grey.shade300,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.mintGreen,
+                width: 1.5,
+              ),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          ),
+        );
+      },
     );
   }
 }

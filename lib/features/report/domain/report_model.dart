@@ -7,7 +7,9 @@ class ReportModel {
   final String? spotName;
   final String? spotAddress;
   final double measuredDb;
-  final StickerType selectedSticker;
+  final StickerType? selectedSticker;
+  final String? tagText;
+  final String? moodTag;
   final DateTime createdAt;
 
   const ReportModel({
@@ -17,12 +19,15 @@ class ReportModel {
     this.spotName,
     this.spotAddress,
     required this.measuredDb,
-    required this.selectedSticker,
+    this.selectedSticker,
+    this.tagText,
+    this.moodTag,
     required this.createdAt,
   });
 
   factory ReportModel.fromJson(Map<String, dynamic> json) {
     final spots = json['spots'] as Map<String, dynamic>?;
+    final stickerKey = json['selected_sticker'] as String?;
     return ReportModel(
       id: json['id'] as String,
       userId: json['user_id'] as String,
@@ -31,7 +36,9 @@ class ReportModel {
       spotAddress: spots?['formatted_address'] as String?,
       measuredDb: (json['measured_db'] as num).toDouble(),
       selectedSticker:
-          StickerTypeX.fromKey(json['selected_sticker'] as String),
+          stickerKey != null ? StickerTypeX.fromKey(stickerKey) : null,
+      tagText: json['tag_text'] as String?,
+      moodTag: json['mood_tag'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }

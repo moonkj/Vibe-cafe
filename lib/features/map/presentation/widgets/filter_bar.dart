@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../report/presentation/widgets/sticker_card_grid.dart';
 import '../../domain/spot_model.dart';
 
 class FilterBar extends StatelessWidget {
@@ -20,35 +21,30 @@ class FilterBar extends StatelessWidget {
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
+          // 전체 버튼
           _FilterChip(
-            label: 'STUDY',
-            emoji: '📚',
-            isActive: activeFilter == StickerType.study,
-            color: AppColors.stickerStudy,
-            onTap: () => onFilterChanged(
-              activeFilter == StickerType.study ? null : StickerType.study,
-            ),
+            label: '전체',
+            emoji: '🗺️',
+            isActive: activeFilter == null,
+            color: AppColors.mintGreen,
+            onTap: () => onFilterChanged(null),
           ),
-          const SizedBox(width: 8),
-          _FilterChip(
-            label: 'MEETING',
-            emoji: '📹',
-            isActive: activeFilter == StickerType.meeting,
-            color: AppColors.stickerMeeting,
-            onTap: () => onFilterChanged(
-              activeFilter == StickerType.meeting ? null : StickerType.meeting,
-            ),
-          ),
-          const SizedBox(width: 8),
-          _FilterChip(
-            label: 'RELAX',
-            emoji: '🌿',
-            isActive: activeFilter == StickerType.relax,
-            color: AppColors.stickerRelax,
-            onTap: () => onFilterChanged(
-              activeFilter == StickerType.relax ? null : StickerType.relax,
-            ),
-          ),
+          // 18개 스티커 필터칩
+          ...StickerType.values.map((type) {
+            final color = StickerCardGrid.colorFor(type);
+            return Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: _FilterChip(
+                label: type.filterLabel,
+                emoji: type.emoji,
+                isActive: activeFilter == type,
+                color: color,
+                onTap: () => onFilterChanged(
+                  activeFilter == type ? null : type,
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );

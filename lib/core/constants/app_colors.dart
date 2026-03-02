@@ -31,10 +31,33 @@ class AppColors {
   static const Color trustSilver = Color(0xFF9CA3AF);
   static const Color trustGold = Color(0xFFD4A017);
 
-  // Sticker Category
-  static const Color stickerStudy = Color(0xFF5BC8AC);
-  static const Color stickerMeeting = Color(0xFF78C5E8);
-  static const Color stickerRelax = Color(0xFF9CC5A1);
+  // Sticker Category — 포커스 & 생산성
+  static const Color stickerStudy    = Color(0xFF5BC8AC); // mint green
+  static const Color stickerWork     = Color(0xFF6E8EBF); // calm blue
+  static const Color stickerStudyZone = Color(0xFF3DAAA0); // dark teal
+  static const Color stickerNomad    = Color(0xFF5B7FCC); // tech blue
+
+  // Sticker Category — 소셜
+  static const Color stickerMeeting  = Color(0xFF78C5E8); // sky blue
+  static const Color stickerVibe     = Color(0xFFFF9A3C); // energetic orange
+  static const Color stickerDate     = Color(0xFFE975A8); // romantic pink
+  static const Color stickerGathering = Color(0xFF9B7DD4); // purple
+
+  // Sticker Category — 가족 & 라이프
+  static const Color stickerFamily   = Color(0xFFFF8C42); // warm orange
+  static const Color stickerRelax    = Color(0xFF9CC5A1); // soft green
+  static const Color stickerHealing  = Color(0xFF7CBF9E); // nature green
+  static const Color stickerCozy     = Color(0xFFD4935A); // warm amber
+
+  // Sticker Category — 감성 스타일
+  static const Color stickerInsta    = Color(0xFFE8526A); // coral pink
+  static const Color stickerRetro    = Color(0xFFA07850); // retro brown
+  static const Color stickerMinimal  = Color(0xFF8EA5A2); // muted teal
+  static const Color stickerGreen    = Color(0xFF5AAE6E); // plant green
+
+  // Sticker Category — 기타
+  static const Color stickerPeak     = Color(0xFFFF5252); // energetic red
+  static const Color stickerMusic    = Color(0xFF7B68EE); // medium slate blue
 
   // UI State
   static const Color divider = Color(0xFFE8F2F0);

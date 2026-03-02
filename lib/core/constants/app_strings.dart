@@ -41,25 +41,44 @@ class AppStrings {
   static const String rankingTabMeasurers = '측정왕 TOP';
   static const String rankingTabWeekly = '이번 주 활발한 카페';
 
-  // Level names
+  // Level names (Lv.1 ~ Lv.10, XP-based)
   static const List<String> levelNames = [
-    '카페 탐험가',   // Lv.1
-    '소음 감지사',   // Lv.2
-    '카페 고수',     // Lv.3
-    '카페 마스터',   // Lv.4
-    '카페온도 레전드', // Lv.5
+    '바이브 비기너',      // Lv.1  (0 XP)
+    '바이브 루키',        // Lv.2  (30 XP)
+    '바이브 헌터',        // Lv.3  (80 XP)
+    '바이브 탐험가',      // Lv.4  (160 XP)
+    '바이브 큐레이터',    // Lv.5  (280 XP)
+    '바이브 감정사',      // Lv.6  (450 XP)
+    '바이브 소믈리에',    // Lv.7  (700 XP)
+    '바이브 마스터',      // Lv.8  (1050 XP)
+    '바이브 그랜드마스터', // Lv.9  (1500 XP)
+    '바이브 레전드',      // Lv.10 (2100 XP)
+  ];
+
+  // Level icons (parallel to levelNames)
+  static const List<String> levelIcons = [
+    '🌱', // Lv.1  비기너    — 새싹, 막 시작한 탐험
+    '📡', // Lv.2  루키      — 바이브 신호 포착 시작
+    '🔍', // Lv.3  헌터      — 조용한 카페 찾아다님
+    '🧭', // Lv.4  탐험가    — 나침반, 방향을 개척
+    '📋', // Lv.5  큐레이터  — 데이터 정리·큐레이션
+    '🎯', // Lv.6  감정사    — 정확한 바이브 감정
+    '☕', // Lv.7  소믈리에  — 커피 향처럼 섬세한 귀
+    '🎧', // Lv.8  마스터    — 소음 마스터
+    '👑', // Lv.9  그랜드마스터 — 왕관
+    '✨', // Lv.10 레전드    — 빛나는 전설
   ];
 
   // dB Labels
-  static const String dbVeryQuiet = '매우 조용';
-  static const String dbQuiet = '조용함';
-  static const String dbModerate = '보통';
-  static const String dbLoud = '시끄러움';
-  static const String dbVeryLoud = '매우 시끄러움';
+  static const String dbVeryQuiet = '마음이 내려앉는 고요';
+  static const String dbQuiet = '편안히 머물기 좋은 소리';
+  static const String dbModerate = '기분 좋은 활기가 도는';
+  static const String dbLoud = '대화가 겹치는 소란함';
+  static const String dbVeryLoud = '귀와 머리가 붕 뜨는 소음';
 
   // Reporting
   static const String reportTooFar =
-      '카페 25m 이내에서만 리포팅 가능합니다.';
+      '카페 50m 이내에서만 리포팅 가능합니다.';
   static const String reportBackground =
       '앱이 활성화된 상태에서만 측정 가능합니다.';
   static const String reportInvalidDb = '측정값이 유효하지 않습니다.';
@@ -70,9 +89,9 @@ class AppStrings {
   // Proximity dialogs
   static const String proximityDialogTitle = '위치 확인 필요';
   static const String proximityDialogMeasure =
-      '카페 25m 이내에서만 측정 가능합니다.\n카페 근처로 이동해 주세요.';
+      '카페 50m 이내에서만 측정 가능합니다.\n카페 근처로 이동해 주세요.';
   static const String proximityDialogSubmit =
-      '카페 25m 이내에서만 리포팅 가능합니다.\n카페 근처로 이동 후 다시 시도해 주세요.';
+      '카페 50m 이내에서만 리포팅 가능합니다.\n카페 근처로 이동 후 다시 시도해 주세요.';
 
   // Calibration
   static const String calibrationTitle = '마이크 초기 설정';

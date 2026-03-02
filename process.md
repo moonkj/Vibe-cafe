@@ -1,6 +1,6 @@
 # Cafe Vibe — 개발 진행 현황 (Process Log)
 
-마지막 업데이트: 2026-03-02 (카페 추가 요청 시스템 ✅, 관리자 기능 ✅, Geocoding 자동좌표 ✅)
+마지막 업데이트: 2026-03-02 (레벨아이콘 ✅, 콘텐츠 필터 ✅, XP 10레벨 ✅, 뱃지상세 ✅, 필터바 전면개편 ✅)
 
 ---
 
@@ -25,6 +25,7 @@ Phase 16: 기능 완성           ████████████ 100% ✅ 
 Phase 17: SpotDetailScreen   ████████████ 100% ✅ (전체화면 상세, 시간대 차트, 바이브 태그, 최근 측정)
 Phase 18: 측정화면 재설계     ████████████ 100% ✅ (원형게이지, pulse 애니메이션, idle 상태, 커스텀 타이머)
 Phase 19: 카페 관리 시스템    ████████████ 100% ✅ (사용자 추가요청, 관리자 승인/등록/수정/삭제, 이메일 알림)
+Phase 20: 측정/프로필 강화    ████████████ 100% ✅ (18종 스티커, XP 10레벨, 뱃지상세, 콘텐츠필터, 레벨아이콘)
 Phase 13: App Store 준비      ████████░░░░  65% 🔄 (GitHub Pages ✅, IPA 57.9MB ✅, TestFlight ⏳, ASC 정보 ⏳)
 아키텍처: 익명인증 전환        ████████████ 100% ✅ (SecureLocalStorage ✅, 닉네임 ✅, 버그수정 ✅)
 ```
@@ -393,6 +394,87 @@ Phase 13: App Store 준비      ████████░░░░  65% 🔄 (
   - `_AdminSpotsSheet` — 수동 등록 카페 목록 (이름·주소·좌표·측정건수·날짜)
   - "수정" → 다이얼로그: 이름·주소·위도·경도 편집, 주소 "자동" 버튼으로 좌표 자동 채움
   - "삭제" → 확인 후 삭제
+
+---
+
+### Phase 20: 측정/프로필 강화 — 2026-03-02
+
+#### 20-A: 스티커 시스템 확장 (보고 화면)
+- [x] `report_screen.dart` — `_StickerView` 단순화
+  - `_ModeTab` (태그 / 메모 전환) 제거 → 스티커 선택 + 메모 입력만 유지
+  - `_TagTextInput` 제거 → 제출 시 `#${sticker.label}` 자동 생성
+  - `_MemoInput` 유지 (공개 피드에 표시되는 메모)
+- [x] `supabase/migrations/013_expand_sticker_types.sql` — 18종 스티커 CHECK 제약 확장
+- [x] `spot_detail_screen.dart` — switch → if 패턴으로 비-exhaustive 스위치 버그 수정
+
+#### 20-B: XP 기반 10레벨 시스템
+- [x] `supabase/migrations/014_xp_system.sql` 신규
+  - `user_stats.total_xp INTEGER NOT NULL DEFAULT 0` 컬럼 추가
+  - `award_xp(p_user_id UUID, p_xp INTEGER)` RPC — UPSERT 방식 XP 적립
+- [x] `app_strings.dart` — `levelNames` 10개로 확장
+  - 바이브 비기너 → 바이브 루키 → 바이브 헌터 → 바이브 탐험가 → 바이브 큐레이터
+  - 바이브 감정사 → 바이브 소믈리에 → 바이브 마스터 → 바이브 그랜드마스터 → 바이브 레전드
+- [x] `level_service.dart` 전면 재작성
+  - `UserLevel.currentXp` (구: `current`) 필드명 변경
+  - XP 임계값: `[0, 30, 80, 160, 280, 450, 700, 1050, 1500, 2100]`
+  - `LevelService.xpPerReport = 10` (1일 1회 제한), `xpNewCafe = 5` (첫 방문 보너스)
+  - `calcPoints()` 제거 (XP 기반으로 통합)
+- [x] `report_repository.dart` — `submitReport()` XP 적립 로직
+  - `hasReportedToday` — 당일 00:00 UTC 기준 쿼리
+  - `isNewCafe` — 동일 스팟 기존 리포트 여부
+  - `xpEarned = (hasReportedToday ? 0 : 10) + (isNewCafe ? 5 : 0)` → `award_xp` RPC 호출
+  - `getMyStats()` — `user_stats.total_xp` 포함 반환
+- [x] `profile_screen.dart`
+  - `totalXp` 기반 `LevelService.calcLevel()` 호출
+  - 프로그레스 텍스트: `'다음 레벨까지 ${level.nextTarget - level.currentXp} XP'`
+  - `_StatsRow`: "획득 포인트" → "누적 XP" (`'$totalXp XP'`)
+
+#### 20-C: 지도 필터바 전면 개편
+- [x] `filter_bar.dart` 완전 재작성
+  - "전체" 버튼 추가 (null filter — 모든 스팟 표시)
+  - `StickerType.values.map()` → 18종 스티커 칩 자동 생성
+  - `StickerCardGrid.colorFor(type)` 색상 재사용
+  - `type.filterLabel` + `type.emoji` 레이블 표시
+  - **이전**: 다른 칩 선택 후 전체 원복 불가 → **수정**: 전체 버튼 탭으로 filter = null 복원
+
+#### 20-D: 뱃지 상세 화면
+- [x] `level_service.dart` — `BadgeInfo.condition` 필드 추가 (획득 조건 설명)
+- [x] `lib/features/profile/presentation/badge_detail_sheet.dart` 신규
+  - `showBadgeDetailSheet(context, badges)` 헬퍼
+  - `DraggableScrollableSheet` (0.5~0.95 비율)
+  - "획득한 뱃지" / "아직 잠긴 뱃지" 2섹션
+  - `_BadgeCard`: 이모지 원 (민트/회색) + 레이블 + 조건 + 획득/미획득 칩
+- [x] `profile_screen.dart`
+  - `_BadgeSection` 헤더에 획득 수 + "전체보기" 버튼 추가
+  - `_BadgeTile.onTap` → `showBadgeDetailSheet()` 호출
+
+#### 20-E: 콘텐츠 필터 (메모 욕설/성적 표현 차단)
+- [x] `lib/core/utils/content_filter.dart` 신규 — 클라이언트 사이드 한국어 차단어 목록
+  - 욕설 16종 + 초성 5종 + 성적 표현 14종 (공백 정규화 + 소문자 처리)
+  - `ContentFilter.validate(text)` → `String?` 오류 메시지
+- [x] `lib/core/services/moderation_service.dart` 신규 — Google Cloud NL Moderate Text API
+  - 키: `--dart-define=GOOGLE_MODERATION_KEY=<key>` 빌드 시 주입 (소스 미포함)
+  - 차단 카테고리: Toxic / Insult / Profanity / Derogatory / Sexually Explicit (신뢰도 ≥ 0.5)
+  - 네트워크 오류 → 허용 (fail-open)
+- [x] `report_screen.dart` — 2단계 검증 (`_StickerViewState`)
+  - Layer 1: `ContentFilter.validate()` — 실시간 (입력 중)
+  - Layer 2: `ModerationService.validate()` — 제출 시 (Google NL API)
+  - `_apiMemoError` 상태 필드 + `_memoError` getter (로컬 에러 우선)
+  - `_MemoInput` — `errorText` 파라미터 + 빨간 테두리
+
+#### 20-F: 레벨별 아이콘
+- [x] `app_strings.dart` — `levelIcons` 리스트 추가 (10개 이모지)
+  - 🌱📡🔍🧭📋🎯☕🎧👑✨ (비기너→루키→헌터→탐험가→큐레이터→감정사→소믈리에→마스터→그랜드마스터→레전드)
+- [x] `level_service.dart` — `UserLevel.icon` 필드 추가, `calcLevel()`에서 자동 할당
+- [x] `profile_screen.dart`
+  - `_LevelCard` — 하드코딩 5개 배열 제거 → `level.icon` 사용
+  - `_ProfileHeader` 레벨 뱃지 — 이모지 + 레벨명 Row 구성
+
+#### 20-G: 권한 상태 새로고침 버그 수정
+- [x] `settings_screen.dart`
+  - `WidgetsBindingObserver` mixin 추가
+  - `didChangeAppLifecycleState(resumed)` — **600ms 딜레이 후** `_checkPermissions()` 호출
+  - 원인: `resumed` 이벤트 발생 직후 iOS가 아직 권한 상태를 앱에 전달하지 않아 stale 값 반환
 
 ---
 

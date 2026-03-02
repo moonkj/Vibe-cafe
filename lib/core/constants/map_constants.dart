@@ -6,7 +6,7 @@ class MapConstants {
   static const double maxRadiusMeters = 5000.0;
 
   // Reporting proximity gate
-  static const double reportMaxDistanceMeters = 25.0;
+  static const double reportMaxDistanceMeters = 50.0;
 
   // Camera idle debounce
   static const int cameraIdleDebounceMs = 300;
@@ -25,7 +25,7 @@ class MapConstants {
   // Default map center (Seoul City Hall)
   static const double defaultLat = 37.5665;
   static const double defaultLng = 126.9780;
-  static const double defaultZoom = 15.0;
+  static const double defaultZoom = 17.0;
 
   // Marker sizes
   static const double markerSizeIndividual = 32.0;
