@@ -91,7 +91,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/spot/:id',
             name: 'spot',
             builder: (context, state) {
-              final spot = state.extra as SpotModel;
+              final spot = state.extra;
+              if (spot is! SpotModel) {
+                // extra 없이 직접 진입 시 안전하게 처리
+                return Scaffold(
+                  appBar: AppBar(),
+                  body: const Center(child: Text('카페 정보를 불러올 수 없습니다.')),
+                );
+              }
               return SpotDetailScreen(spot: spot);
             },
           ),

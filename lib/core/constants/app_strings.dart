@@ -89,9 +89,9 @@ class AppStrings {
   // Proximity dialogs
   static const String proximityDialogTitle = '위치 확인 필요';
   static const String proximityDialogMeasure =
-      '카페 50m 이내에서만 측정 가능합니다.\n카페 근처로 이동해 주세요.';
+      '카페 50m 이내에서만 측정 가능합니다.\n카페 근처로 이동해 주세요.\n\n💡 카페 안에서는 GPS 신호가 유리·벽에 반사되어 위치가 다르게 잡힐 수 있어요.';
   static const String proximityDialogSubmit =
-      '카페 50m 이내에서만 리포팅 가능합니다.\n카페 근처로 이동 후 다시 시도해 주세요.';
+      '카페 50m 이내에서만 리포팅 가능합니다.\n카페 근처로 이동 후 다시 시도해 주세요.\n\n💡 카페 안에서는 GPS 신호가 유리·벽에 반사되어 위치가 다르게 잡힐 수 있어요.';
 
   // Calibration
   static const String calibrationTitle = '마이크 초기 설정';

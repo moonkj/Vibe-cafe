@@ -141,11 +141,16 @@ class MapController extends Notifier<MapState> {
   }
 
   void setFilter(StickerType? filter) {
-    final isToggle = state.activeFilter == filter;
-    state = state.copyWith(
-      activeFilter: isToggle ? null : filter,
-      clearFilter: isToggle,
-    );
+    if (filter == null) {
+      // null = 전체 버튼 or 활성 칩 재탭 → 항상 clearFilter
+      state = state.copyWith(clearFilter: true);
+    } else {
+      final isToggle = state.activeFilter == filter;
+      state = state.copyWith(
+        activeFilter: isToggle ? null : filter,
+        clearFilter: isToggle,
+      );
+    }
     final pos = state.userPosition;
     if (pos != null) _loadSpots(lat: pos.latitude, lng: pos.longitude);
   }
@@ -165,6 +170,41 @@ class MapController extends Notifier<MapState> {
         (bounds.northeast.latitude + bounds.southwest.latitude) / 2,
         (bounds.northeast.longitude + bounds.southwest.longitude) / 2,
       );
+
+  // ── Admin dummy mode helpers ─────────────────────────────────────────
+
+  /// Overrides user position to [lat]/[lng], loads spots there, and moves camera.
+  /// Used by admin dummy mode to simulate being at Gangnam Station.
+  Future<void> setDummyLocation(double lat, double lng) async {
+    final fake = Position(
+      latitude: lat,
+      longitude: lng,
+      timestamp: DateTime.now(),
+      accuracy: 1.0,
+      altitude: 0.0,
+      altitudeAccuracy: 0.0,
+      heading: 0.0,
+      headingAccuracy: 0.0,
+      speed: 0.0,
+      speedAccuracy: 0.0,
+      isMocked: true,
+    );
+    state = state.copyWith(userPosition: fake);
+    await _loadSpots(lat: lat, lng: lng);
+    // Camera may be disposed if map tab is not active — ignore the error.
+    try {
+      mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: LatLng(lat, lng), zoom: 15.5),
+        ),
+      );
+    } catch (_) {}
+  }
+
+  /// Reverts to real GPS location after dummy mode is turned OFF.
+  Future<void> resetRealLocation() async {
+    await _initLocation();
+  }
 }
 
 final mapControllerProvider = NotifierProvider<MapController, MapState>(

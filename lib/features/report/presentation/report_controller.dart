@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:noise_meter/noise_meter.dart';
 import '../../../core/constants/map_constants.dart';
+import '../../../core/services/admin_dummy_service.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/review_service.dart';
 import '../../../core/utils/noise_filter.dart';
@@ -261,6 +262,9 @@ class ReportController extends Notifier<ReportState> {
   }
 
   Future<bool> verifyProximity() async {
+    // Admin dummy mode: skip proximity gate entirely
+    if (ref.read(adminDummyModeProvider).asData?.value == true) return true;
+
     // New spot (no spotId): no proximity gate — location is captured from GPS at submit
     if (_spotId.isEmpty) return true;
 

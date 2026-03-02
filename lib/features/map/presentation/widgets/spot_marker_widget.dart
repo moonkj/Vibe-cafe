@@ -8,10 +8,19 @@ import '../../../../core/utils/db_classifier.dart';
 import '../../../report/data/report_repository.dart';
 import '../../domain/spot_model.dart';
 
+/// Family key: (spotId, googlePlaceId).
+/// Dummy spots encode fake reporter names in googlePlaceId as "DUMMY:index:name".
 final _firstReporterProvider =
-    FutureProvider.autoDispose.family<String?, String>(
-  (ref, spotId) =>
-      ref.read(reportRepositoryProvider).getFirstReporterNickname(spotId),
+    FutureProvider.autoDispose.family<String?, (String, String?)>(
+  (ref, args) {
+    final (spotId, googlePlaceId) = args;
+    // Dummy spots: extract fake reporter name without DB query
+    if (googlePlaceId != null && googlePlaceId.startsWith('DUMMY:')) {
+      final parts = googlePlaceId.split(':');
+      if (parts.length >= 3) return Future.value(parts[2]);
+    }
+    return ref.read(reportRepositoryProvider).getFirstReporterNickname(spotId);
+  },
 );
 
 /// Circular spot marker showing dB-based color and trust_score border thickness.
@@ -198,7 +207,9 @@ class SpotInfoCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final firstReporterAsync = ref.watch(_firstReporterProvider(spot.id));
+    final firstReporterAsync = ref.watch(
+      _firstReporterProvider((spot.id, spot.googlePlaceId)),
+    );
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(20),
@@ -262,7 +273,7 @@ class SpotInfoCard extends ConsumerWidget {
                         data: (name) => name == null
                             ? const SizedBox.shrink()
                             : Text(
-                                '첫 측정: $name',
+                                '첫 바이브: $name',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: AppColors.mintGreen,

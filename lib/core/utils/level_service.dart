@@ -15,7 +15,7 @@ enum BadgeCategory {
 
 extension BadgeCategoryX on BadgeCategory {
   String get label => const {
-    BadgeCategory.firstExperience: '첫 경험',
+    BadgeCategory.firstExperience: '첫 바이브',
     BadgeCategory.consistency:    '꾸준함',
     BadgeCategory.exploration:    '탐험',
     BadgeCategory.vibeDetection:  '바이브 감별',

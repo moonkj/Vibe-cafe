@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/constants/admin_config.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/nickname_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/level_service.dart';
 import '../../map/domain/spot_model.dart';
 import '../../report/data/report_repository.dart';
@@ -12,17 +14,30 @@ import 'badge_detail_sheet.dart';
 import 'nickname_setup_sheet.dart';
 import 'widgets/level_up_animation.dart';
 
-final _myStatsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+/// Admin-only: when true, all badges are shown as unlocked in profile.
+class _AdminBadgePreviewNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+  void toggle() => state = !state;
+}
+
+final adminBadgePreviewProvider =
+    NotifierProvider<_AdminBadgePreviewNotifier, bool>(
+  _AdminBadgePreviewNotifier.new,
+);
+
+/// Public so report_screen.dart can invalidate these after a submission.
+final profileStatsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
   return ref.watch(reportRepositoryProvider).getMyStats();
 });
 
 /// Returns (BadgeStats, earnedBadgeIds) for the badge section.
-final _badgeDataProvider =
+final profileBadgeDataProvider =
     FutureProvider.autoDispose<(BadgeStats, Set<String>)>((ref) {
   return ref.watch(reportRepositoryProvider).getMyBadgeStats();
 });
 
-final _myReportsProvider = FutureProvider.autoDispose<List<ReportModel>>((ref) {
+final profileReportsProvider = FutureProvider.autoDispose<List<ReportModel>>((ref) {
   return ref.watch(reportRepositoryProvider).getMyReports();
 });
 
@@ -76,8 +91,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final statsAsync = ref.watch(_myStatsProvider);
-    final reportsAsync = ref.watch(_myReportsProvider);
+    final statsAsync = ref.watch(profileStatsProvider);
+    final reportsAsync = ref.watch(profileReportsProvider);
     final nickname = ref.watch(nicknameProvider);
 
     // 서버 닉네임 로드 시: 로컬 동기화 or 없으면 시트 표시
@@ -98,10 +113,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       });
     });
 
-    final badgeDataAsync = ref.watch(_badgeDataProvider);
+    final badgeDataAsync = ref.watch(profileBadgeDataProvider);
 
     // Level-up detection: compare prev vs current level after stats load
-    ref.listen(_myStatsProvider, (_, next) {
+    ref.listen(profileStatsProvider, (_, next) {
       next.whenData((stats) {
         final totalXp = stats['total_xp'] as int? ?? 0;
         final newLevel = LevelService.calcLevel(totalXp).level;
@@ -112,6 +127,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _prevLevel = newLevel;
       });
     });
+
+    final client = ref.watch(supabaseClientProvider);
+    final isAdmin = AdminConfig.adminUserIds.contains(client.auth.currentUser?.id);
+    final adminPreview = isAdmin && ref.watch(adminBadgePreviewProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6F1),
@@ -130,7 +149,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           final badgeData = badgeDataAsync.asData?.value;
           final badgeStats = badgeData?.$1 ?? BadgeStats.empty();
           final earnedIds = badgeData?.$2 ?? <String>{};
-          final badges = LevelService.calcBadges(badgeStats, earnedIds);
+
+          // Admin preview mode: force all badges unlocked for visual testing
+          final rawBadges = LevelService.calcBadges(badgeStats, earnedIds);
+          final badges = adminPreview
+              ? rawBadges.map((b) => b.copyWith(unlocked: true)).toList()
+              : rawBadges;
 
           return CustomScrollView(
             slivers: [
@@ -157,6 +181,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ],
               ),
 
+              // Admin preview banner
+              if (adminPreview)
+                const SliverToBoxAdapter(child: _AdminPreviewBanner()),
+
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -172,15 +200,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       const SizedBox(height: 16),
                       _BadgeSection(badges: badges),
                       const SizedBox(height: 20),
-                      const Text(
-                        '내 측정 기록',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
                     ],
                   ),
                 ),
@@ -196,14 +215,68 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 error: (e, _) =>
                     SliverToBoxAdapter(child: Center(child: Text(e.toString()))),
-                data: (reports) => reports.isEmpty
-                    ? const SliverToBoxAdapter(child: _EmptyReports())
-                    : SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (ctx, i) => _ReportTile(report: reports[i]),
-                          childCount: reports.length,
+                data: (reports) {
+                  if (reports.isEmpty) {
+                    return SliverMainAxisGroup(slivers: [
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: Text(
+                            '내 측정 기록',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1A1A1A),
+                            ),
+                          ),
                         ),
                       ),
+                      const SliverToBoxAdapter(child: _EmptyReports()),
+                    ]);
+                  }
+                  final displayCount = reports.length > 10 ? 10 : reports.length;
+                  final hasMore = reports.length > 10;
+                  return SliverMainAxisGroup(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: Row(
+                            children: [
+                              const Text(
+                                '내 측정 기록',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF1A1A1A),
+                                ),
+                              ),
+                              const Spacer(),
+                              if (hasMore)
+                                GestureDetector(
+                                  onTap: () => showAllReportsSheet(context, reports),
+                                  child: const Text(
+                                    '전체보기',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.mintGreen,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (ctx, i) => _ReportTile(report: reports[i]),
+                          childCount: displayCount,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 40)),
@@ -696,7 +769,7 @@ class _ReportTile extends StatelessWidget {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          '#${report.tagText}',
+                          report.tagText!,
                           style: const TextStyle(
                             fontSize: 10,
                             color: AppColors.mintGreen,
@@ -738,6 +811,125 @@ class _ReportTile extends StatelessWidget {
     if (diff.inHours >= 1) return '${diff.inHours}시간 전';
     if (diff.inMinutes >= 1) return '${diff.inMinutes}분 전';
     return '방금 전';
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// Admin: preview mode active banner
+// ──────────────────────────────────────────────────────────────
+class _AdminPreviewBanner extends StatelessWidget {
+  const _AdminPreviewBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.mintGreen.withValues(alpha: 0.12),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+      child: Row(
+        children: [
+          const Icon(Icons.admin_panel_settings_rounded,
+              size: 14, color: AppColors.mintGreen),
+          const SizedBox(width: 6),
+          const Text(
+            '관리자 뱃지 미리보기 ON — 모든 뱃지 획득 상태로 표시 중',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.mintGreen,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// All reports bottom sheet
+// ──────────────────────────────────────────────────────────────
+void showAllReportsSheet(BuildContext context, List<ReportModel> reports) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _AllReportsSheet(reports: reports),
+  );
+}
+
+class _AllReportsSheet extends StatelessWidget {
+  final List<ReportModel> reports;
+  const _AllReportsSheet({required this.reports});
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.5,
+      maxChildSize: 0.8,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    const Text(
+                      '내 측정 기록',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1A1A1A),
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.mintGreen.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${reports.length}개',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.mintGreen,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  padding: const EdgeInsets.only(bottom: 32),
+                  itemCount: reports.length,
+                  itemBuilder: (ctx, i) => _ReportTile(report: reports[i]),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 

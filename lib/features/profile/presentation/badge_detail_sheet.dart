@@ -26,9 +26,9 @@ class BadgeDetailSheet extends StatelessWidget {
     }
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.85,
+      initialChildSize: 0.75,
       minChildSize: 0.5,
-      maxChildSize: 0.95,
+      maxChildSize: 0.8,
       builder: (context, scrollController) {
         return Container(
           decoration: const BoxDecoration(

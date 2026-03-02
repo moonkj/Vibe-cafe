@@ -9,6 +9,8 @@ import '../../../core/services/moderation_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/content_filter.dart';
 import '../../map/domain/spot_model.dart';
+import '../../profile/presentation/profile_screen.dart'
+    show profileStatsProvider, profileReportsProvider, profileBadgeDataProvider;
 import '../../profile/presentation/widgets/badge_earned_popup.dart';
 import '../data/report_repository.dart';
 import 'report_controller.dart';
@@ -97,12 +99,16 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(reportControllerProvider);
 
-    // Trigger badge check once when report is successfully submitted
+    // Trigger badge check + profile refresh once when report is submitted
     ref.listen<ReportState>(reportControllerProvider, (prev, next) {
       if (prev?.phase != ReportPhase.done &&
           next.phase == ReportPhase.done &&
           !_badgeCheckDone) {
         _badgeCheckDone = true;
+        // Invalidate profile providers so the profile tab shows fresh data
+        ref.invalidate(profileStatsProvider);
+        ref.invalidate(profileReportsProvider);
+        ref.invalidate(profileBadgeDataProvider);
         _checkBadgesAfterSubmit();
       }
     });

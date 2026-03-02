@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/admin_config.dart';
+import '../../../core/services/admin_dummy_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/badge_service.dart';
 import '../../../core/services/nickname_service.dart';
@@ -14,6 +17,7 @@ import '../../../core/services/places_service.dart';
 import '../../map/data/spots_repository.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/presentation/widgets/badge_earned_popup.dart';
+import '../../profile/presentation/profile_screen.dart' show adminBadgePreviewProvider;
 import '../../../core/services/location_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -25,8 +29,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen>
     with WidgetsBindingObserver {
-  PermissionStatus _micStatus = PermissionStatus.denied;
-  PermissionStatus _locationStatus = PermissionStatus.denied;
+  bool _micGranted = false;
+  bool _locationGranted = false;
 
   @override
   void initState() {
@@ -42,24 +46,55 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }
 
   /// Re-check permissions whenever the app returns to foreground.
-  /// Covers the case where the user grants/revokes in iOS Settings.
-  /// The 600ms delay lets iOS propagate the new permission status before querying.
+  /// iOS propagates permission changes asynchronously after the user returns
+  /// from Settings — we check at 1 s and again at 2.5 s to handle slow devices.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      Future.delayed(const Duration(milliseconds: 600), () {
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (mounted) _checkPermissions();
+      });
+      Future.delayed(const Duration(milliseconds: 2500), () {
         if (mounted) _checkPermissions();
       });
     }
   }
 
+  // Native channel bypasses permission_handler iOS 26 beta bugs.
+  static const _permChannel = MethodChannel('com.cafevibe/permissions');
+
+  Future<bool> _checkMicNative() async {
+    try {
+      final result = await _permChannel.invokeMethod<String>('checkMicrophonePermission');
+      return result == 'authorized';
+    } catch (_) {
+      // Fallback to permission_handler if channel fails
+      final s = await Permission.microphone.status;
+      return s.isGranted;
+    }
+  }
+
   Future<void> _checkPermissions() async {
-    final mic = await Permission.microphone.status;
-    final loc = await Permission.locationWhenInUse.status;
+    // Use AVCaptureDevice.authorizationStatus(for: .audio) via native channel —
+    // most reliable across all iOS versions including iOS 26 beta.
+    final micGranted = await _checkMicNative();
+
+    // Location: use Geolocator — same package the app uses for actual location,
+    // ensuring consistent status with how iOS actually granted it.
+    LocationPermission geoLoc;
+    try {
+      geoLoc = await Geolocator.checkPermission();
+    } catch (_) {
+      geoLoc = LocationPermission.denied;
+    }
+    final locGranted =
+        geoLoc == LocationPermission.always ||
+        geoLoc == LocationPermission.whileInUse;
+
     if (mounted) {
       setState(() {
-        _micStatus = mic;
-        _locationStatus = loc;
+        _micGranted = micGranted;
+        _locationGranted = locGranted;
       });
     }
   }
@@ -152,23 +187,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   icon: Icons.mic_rounded,
                   title: '마이크',
                   subtitle: '소음 수치(dB) 측정에만 사용됩니다',
-                  status: _micStatus,
-                  buttonLabel: _permissionButtonLabel(_micStatus),
-                  onManage: () async {
-                    await openAppSettings();
-                    await _checkPermissions();
-                  },
+                  isGranted: _micGranted,
+                  onManage: () => openAppSettings(),
                 ),
                 _PermissionTile(
                   icon: Icons.location_on_rounded,
                   title: '위치',
                   subtitle: '주변 카페 탐색 및 측정 위치 확인에 사용됩니다',
-                  status: _locationStatus,
-                  buttonLabel: _permissionButtonLabel(_locationStatus),
-                  onManage: () async {
-                    await openAppSettings();
-                    await _checkPermissions();
-                  },
+                  isGranted: _locationGranted,
+                  onManage: () => openAppSettings(),
                 ),
 
                 // ── 정보 ──────────────────────────────────────────────
@@ -229,10 +256,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   _SettingsTile(
                     icon: Icons.add_location_alt_outlined,
                     title: '현재 위치 더미 카페 등록',
-                    subtitle: '테스트용 임시 카페',
+                    subtitle: '현재 위치에 임시 카페 등록',
                     showArrow: false,
                     onTap: () => _registerDummySpot(context),
                   ),
+                  _SettingsTile(
+                    icon: Icons.workspace_premium_outlined,
+                    title: '뱃지 전체 미리보기',
+                    subtitle: '프로필에서 모든 뱃지를 획득 상태로 표시',
+                    trailing: Switch(
+                      value: ref.watch(adminBadgePreviewProvider),
+                      onChanged: (_) =>
+                          ref.read(adminBadgePreviewProvider.notifier).toggle(),
+                      activeThumbColor: AppColors.mintGreen,
+                      activeTrackColor: AppColors.mintGreen.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  // ── 강남역 더미 데이터 모드 ─────────────────────────
+                  _buildDummyModeTile(),
                 ],
 
                 // ── 데이터 관리 ────────────────────────────────────────
@@ -335,9 +376,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     );
   }
 
-  String _permissionButtonLabel(PermissionStatus status) {
-    if (status.isGranted) return '설정에서 변경';
-    return '설정에서 허용';
+  /// Builds the dummy mode switch tile with loading/error states.
+  Widget _buildDummyModeTile() {
+    final dummyAsync = ref.watch(adminDummyModeProvider);
+    final isOn = dummyAsync.asData?.value ?? false;
+    final isLoading = dummyAsync.isLoading;
+
+    // Show error snackbar whenever the provider enters error state
+    ref.listen<AsyncValue<bool>>(adminDummyModeProvider, (prev, next) {
+      if (next.hasError && !next.isLoading) {
+        final msg = next.error.toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('더미 모드 오류: $msg'),
+            backgroundColor: Colors.red.shade700,
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+    });
+
+    return _SettingsTile(
+      icon: Icons.fmd_good_outlined,
+      title: '강남역 더미 데이터 모드',
+      subtitle: isOn
+          ? '📍 강남역으로 위치 오버라이드 중'
+          : '강남역 주변 카페 30개 + 측정 데이터 삽입',
+      trailing: isLoading
+          ? const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: AppColors.mintGreen,
+              ),
+            )
+          : Switch(
+              value: isOn,
+              onChanged: (v) {
+                if (v) {
+                  ref.read(adminDummyModeProvider.notifier).enable();
+                } else {
+                  ref.read(adminDummyModeProvider.notifier).disable();
+                }
+              },
+              activeThumbColor: AppColors.mintGreen,
+              activeTrackColor: AppColors.mintGreen.withValues(alpha: 0.4),
+            ),
+    );
   }
 
   void _confirmLogout(BuildContext context) {
@@ -459,7 +545,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   Future<void> _registerDummySpot(BuildContext context) async {
     final now = DateTime.now();
     final nameCtrl = TextEditingController(
-      text: '테스트 카페 ${now.hour}:${now.minute.toString().padLeft(2, '0')}',
+      text: '임시 카페 ${now.hour}:${now.minute.toString().padLeft(2, '0')}',
     );
     final messenger = ScaffoldMessenger.of(context);
 
@@ -472,7 +558,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '현재 GPS 위치로 테스트용 카페를 등록합니다.\n"등록된 카페 관리"에서 삭제할 수 있습니다.',
+              '현재 GPS 위치에 임시 카페를 등록합니다.\n"등록된 카페 관리"에서 삭제할 수 있습니다.',
               style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 12),
@@ -654,22 +740,19 @@ class _PermissionTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final PermissionStatus status;
-  final String buttonLabel;
+  final bool isGranted;
   final VoidCallback onManage;
 
   const _PermissionTile({
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.status,
-    required this.buttonLabel,
+    required this.isGranted,
     required this.onManage,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isGranted = status == PermissionStatus.granted;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       decoration: BoxDecoration(
@@ -707,7 +790,10 @@ class _PermissionTile extends StatelessWidget {
                 padding: EdgeInsets.zero,
                 minimumSize: const Size(40, 32),
               ),
-              child: Text(buttonLabel, style: const TextStyle(color: AppColors.mintGreen)),
+              child: Text(
+                isGranted ? '설정에서 변경' : '설정에서 허용',
+                style: const TextStyle(color: AppColors.mintGreen),
+              ),
             ),
           ],
         ),
