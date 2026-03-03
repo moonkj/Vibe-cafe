@@ -12,16 +12,30 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _waveController;
+  late final AnimationController _fadeController;
 
   @override
   void initState() {
     super.initState();
+
     _waveController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 12),
     )..repeat();
+
+    // 페이드아웃 컨트롤러 — 1.0(불투명)에서 시작
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+      value: 1.0,
+    );
+
+    // 2.4초 후 페이드아웃 시작 (0.6초) → 3초에 맵 이동
+    Future.delayed(const Duration(milliseconds: 2400), () {
+      if (mounted) _fadeController.reverse();
+    });
 
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) context.go('/map');
@@ -31,6 +45,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void dispose() {
     _waveController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
@@ -49,59 +64,62 @@ class _SplashScreenState extends State<SplashScreen>
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(gradient: background),
-        child: SafeArea(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(flex: 2),
+        child: FadeTransition(
+          opacity: _fadeController,
+          child: SafeArea(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(flex: 2),
 
-              // Wave animation
-              SizedBox(
-                height: 170,
-                child: AnimatedBuilder(
-                  animation: _waveController,
-                  builder: (context, _) => CustomPaint(
-                    painter: FlowingWavePainter(
-                      animation: _waveController.value,
-                      isDark: isDark,
+                // Wave animation
+                SizedBox(
+                  height: 170,
+                  child: AnimatedBuilder(
+                    animation: _waveController,
+                    builder: (context, _) => CustomPaint(
+                      painter: FlowingWavePainter(
+                        animation: _waveController.value,
+                        isDark: isDark,
+                      ),
+                      size: const Size(double.infinity, 170),
                     ),
-                    size: const Size(double.infinity, 170),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 28),
+                const SizedBox(height: 28),
 
-              // App name
-              ShaderMask(
-                shaderCallback: (bounds) => const LinearGradient(
-                  colors: [AppColors.mintGreen, AppColors.skyBlue],
-                ).createShader(bounds),
-                child: Text(
-                  AppStrings.appName,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
+                // App name
+                ShaderMask(
+                  shaderCallback: (bounds) => const LinearGradient(
+                    colors: [AppColors.mintGreen, AppColors.skyBlue],
+                  ).createShader(bounds),
+                  child: Text(
+                    AppStrings.appName,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  AppStrings.appSlogan,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.55),
+                        height: 1.5,
                       ),
                 ),
-              ),
 
-              const SizedBox(height: 10),
-
-              Text(
-                AppStrings.appSlogan,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.55),
-                      height: 1.5,
-                    ),
-              ),
-
-              const Spacer(flex: 3),
-            ],
+                const Spacer(flex: 3),
+              ],
+            ),
           ),
         ),
       ),

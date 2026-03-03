@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,7 +53,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/splash',
         name: 'splash',
-        builder: (context, state) => const SplashScreen(),
+        // GoRouter 전환 없음 — SplashScreen 내부에서 자체 페이드아웃 처리
+        pageBuilder: (context, state) => const NoTransitionPage(
+          child: SplashScreen(),
+        ),
       ),
       GoRoute(
         path: '/onboarding',
@@ -140,7 +144,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 // ──────────────────────────────────────────────────────────────
 // Main Shell — 4탭 하단 네비게이션 바
 // ──────────────────────────────────────────────────────────────
-class _MainShell extends StatelessWidget {
+class _MainShell extends StatefulWidget {
   final Widget child;
   const _MainShell({required this.child});
 
@@ -159,21 +163,83 @@ class _MainShell extends StatelessWidget {
   }
 
   @override
+  State<_MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<_MainShell>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _overlayCtrl;
+  Timer? _overlayTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // 앱 시작 시 ShellRoute 최초 진입은 항상 /map — 즉시 불투명으로 커버
+    _overlayCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+      value: 1.0,
+    );
+    _scheduleFadeOut();
+  }
+
+  @override
+  void dispose() {
+    _overlayTimer?.cancel();
+    _overlayCtrl.dispose();
+    super.dispose();
+  }
+
+  void _scheduleFadeOut() {
+    _overlayTimer?.cancel();
+    _overlayTimer = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) _overlayCtrl.reverse();
+    });
+  }
+
+  // 탭 버튼에서 직접 호출 — build() 밖이므로 notifyListeners 안전
+  void _onTabTap(int i) {
+    final path = _MainShell._tabs[i].path;
+    if (path == '/map') {
+      _overlayCtrl.value = 1.0;
+      _scheduleFadeOut();
+    }
+    context.go(path);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    if (!_showNav(location)) return child;
 
-    final currentIndex = _tabs.indexWhere(
+    if (!_MainShell._showNav(location)) return widget.child;
+
+    final currentIndex = _MainShell._tabs.indexWhere(
       (t) => location == t.path || location.startsWith('${t.path}?'),
     );
     final activeIndex = currentIndex < 0 ? 0 : currentIndex;
 
     return Scaffold(
-      body: child,
+      body: Stack(
+        children: [
+          widget.child,
+          // 지도탭 진입 시 플리커 방지 — 즉시 불투명, 부드럽게 페이드아웃
+          IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _overlayCtrl,
+              builder: (_, child) => Opacity(
+                opacity: _overlayCtrl.value,
+                child: Container(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: _BottomNav(
         activeIndex: activeIndex,
-        tabs: _tabs,
-        onTap: (i) => context.go(_tabs[i].path),
+        tabs: _MainShell._tabs,
+        onTap: _onTabTap,
       ),
     );
   }

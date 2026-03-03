@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
+import 'core/services/theme_mode_service.dart';
 
 /// Google Maps API key must be set in ios/Runner/AppDelegate.swift.
 /// Supabase credentials live in core/services/supabase_service.dart.
@@ -12,6 +14,10 @@ void main() async {
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
+
+  // 첫 프레임부터 올바른 테마를 적용 — 다크모드 flash 방지
+  final prefs = await SharedPreferences.getInstance();
+  preloadThemeMode(prefs.getString('theme_mode'));
 
   // Run the app immediately — Supabase initialises inside OnboardingScreen
   // via supabaseInitProvider (FutureProvider), so the UI is never blocked.
