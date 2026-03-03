@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -29,12 +30,20 @@ class _LevelUpOverlay extends StatefulWidget {
 }
 
 class _LevelUpOverlayState extends State<_LevelUpOverlay> {
+  Timer? _dismissTimer;
+
   @override
   void initState() {
     super.initState();
-    Future.delayed(widget.autoDismiss, () {
+    _dismissTimer = Timer(widget.autoDismiss, () {
       if (mounted) Navigator.of(context).pop();
     });
+  }
+
+  @override
+  void dispose() {
+    _dismissTimer?.cancel();
+    super.dispose();
   }
 
   @override

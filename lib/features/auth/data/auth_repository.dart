@@ -23,9 +23,12 @@ class AuthRepository {
       nonce: hashedNonce,
     );
 
+    final idToken = credential.identityToken;
+    if (idToken == null) throw Exception('Apple Sign In: identityToken이 없습니다.');
+
     await _client.auth.signInWithIdToken(
       provider: OAuthProvider.apple,
-      idToken: credential.identityToken!,
+      idToken: idToken,
       nonce: rawNonce,
     );
   }

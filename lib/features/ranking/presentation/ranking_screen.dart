@@ -40,61 +40,54 @@ class _RankingScreenState extends ConsumerState<RankingScreen>
           : const Color(0xFFF8F6F1),
       body: Column(
         children: [
-          ClipRRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                decoration: BoxDecoration(
+          Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkBgSurface : Colors.white,
+              border: Border(
+                bottom: BorderSide(
                   color: isDark
-                      ? AppColors.darkBgSurface.withValues(alpha: 0.85)
-                      : Colors.white.withValues(alpha: 0.6),
-                  border: Border(
-                    bottom: BorderSide(
-                      color: isDark
-                          ? AppColors.darkDivider
-                          : AppColors.mintGreen.withValues(alpha: 0.1),
-                    ),
-                  ),
-                ),
-                padding: EdgeInsets.only(top: top),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    Text(
-                      AppStrings.rankingTitle,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: isDark
-                            ? AppColors.darkTextPrimary
-                            : AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TabBar(
-                      controller: _tabController,
-                      isScrollable: true,
-                      tabAlignment: TabAlignment.start,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      labelColor: AppColors.mintGreen,
-                      unselectedLabelColor: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.textSecondary,
-                      indicatorColor: AppColors.mintGreen,
-                      indicatorWeight: 2,
-                      dividerHeight: 0,
-                      labelStyle: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600),
-                      unselectedLabelStyle: const TextStyle(fontSize: 13),
-                      tabs: const [
-                        Tab(text: AppStrings.rankingTabQuiet),
-                        Tab(text: AppStrings.rankingTabMeasurers),
-                        Tab(text: AppStrings.rankingTabWeekly),
-                      ],
-                    ),
-                  ],
+                      ? AppColors.darkDivider
+                      : AppColors.mintGreen.withValues(alpha: 0.1),
                 ),
               ),
+            ),
+            padding: EdgeInsets.only(top: top),
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+                Text(
+                  AppStrings.rankingTitle,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: isDark
+                        ? AppColors.darkTextPrimary
+                        : AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  labelColor: AppColors.mintGreen,
+                  unselectedLabelColor: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary,
+                  indicatorColor: AppColors.mintGreen,
+                  indicatorWeight: 2,
+                  dividerHeight: 0,
+                  labelStyle: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600),
+                  unselectedLabelStyle: const TextStyle(fontSize: 13),
+                  tabs: const [
+                    Tab(text: AppStrings.rankingTabQuiet),
+                    Tab(text: AppStrings.rankingTabMeasurers),
+                    Tab(text: AppStrings.rankingTabWeekly),
+                  ],
+                ),
+              ],
             ),
           ),
           Expanded(

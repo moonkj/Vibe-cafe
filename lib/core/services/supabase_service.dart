@@ -1,17 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'secure_local_storage.dart';
 
-// Supabase credentials (same values as main.dart dart-define defaults)
-const _kSupabaseUrl = String.fromEnvironment(
-  'SUPABASE_URL',
-  defaultValue: 'https://rqlfyumzmpmhupjtroid.supabase.co',
-);
-const _kSupabaseAnonKey = String.fromEnvironment(
-  'SUPABASE_ANON_KEY',
-  defaultValue:
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxbGZ5dW16bXBtaHVwanRyb2lkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMzY4MjIsImV4cCI6MjA4NzcxMjgyMn0.PiivIIa-mjgOTLOH_suaAyllGQZRb8p-cYLi5gHpPXk',
-);
+// Supabase credentials — must be supplied via --dart-define at build time.
+// No fallback defaultValue: failure at startup is preferable to shipping keys.
+const _kSupabaseUrl = String.fromEnvironment('SUPABASE_URL', defaultValue: '');
+const _kSupabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
 
 class SupabaseService {
   SupabaseService._();
@@ -47,7 +42,10 @@ final supabaseInitProvider = FutureProvider<void>((ref) async {
           localStorage: EmptyLocalStorage(),
         ),
       ).timeout(const Duration(seconds: 10));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Supabase] 초기화 실패 (fallback도 실패): $e');
+      rethrow;
+    }
   }
 });
 

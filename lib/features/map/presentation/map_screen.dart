@@ -40,6 +40,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Set<Marker> _markers = {};
   Set<Circle> _circles = {};
   List<SpotModel> _lastBuiltSpots = const [];
+  static const int _maxBitmapCacheSize = 100;
   final Map<String, BitmapDescriptor> _bitmapCache = {};
   SpotDisplayMode _lastDisplayMode = SpotDisplayMode.hidden;
   bool _hasMovedToUser = false;
@@ -364,6 +365,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     for (final spot in spots) {
       final cacheKey = '${spot.id}_$isReduced';
       if (!_bitmapCache.containsKey(cacheKey)) {
+        // Evict oldest entry when cache is full (FIFO)
+        if (_bitmapCache.length >= _maxBitmapCacheSize) {
+          _bitmapCache.remove(_bitmapCache.keys.first);
+        }
         _bitmapCache[cacheKey] = await SpotMarkerWidget.toBitmapDescriptor(
           spot,
           pixelRatio,

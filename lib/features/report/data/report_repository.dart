@@ -69,7 +69,7 @@ class ReportRepository {
       if (sticker != null) 'selected_sticker': sticker.key,
       if (tagText != null && tagText.isNotEmpty) 'tag_text': tagText,
       if (moodTag != null && moodTag.isNotEmpty) 'mood_tag': moodTag,
-    });
+    }).timeout(const Duration(seconds: 10));
 
     // Update spot EMA average via RPC
     await _client.rpc('update_spot_after_report', params: {
@@ -77,7 +77,7 @@ class ReportRepository {
       'p_new_db': measuredDb,
       'p_sticker': sticker?.key,
       'p_user_id': userId,
-    });
+    }).timeout(const Duration(seconds: 10));
 
     // Update aggregated user stats (total_reports, total_cafes)
     try {
@@ -260,6 +260,43 @@ class ReportRepository {
   }
 
   // ──────────────────────────────────────────────────────────
+  // My Map
+  // ──────────────────────────────────────────────────────────
+
+  /// Returns all unique spots the current user has measured.
+  /// Uses get_spots_by_ids RPC to extract lat/lng from PostGIS location column.
+  Future<List<SpotModel>> getMyReportedSpots() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return [];
+
+    final reportRes = await _client
+        .from('reports')
+        .select('spot_id')
+        .eq('user_id', userId);
+    final spotIds = (reportRes as List)
+        .cast<Map<String, dynamic>>()
+        .map((r) => r['spot_id'] as String)
+        .toSet()
+        .toList();
+    if (spotIds.isEmpty) return [];
+
+    // RPC extracts lat/lng via ST_Y/ST_X from PostGIS GEOGRAPHY(Point) column.
+    // Direct table select cannot do this — PostgREST returns geography as hex WKB.
+    final spotsRes = await _client.rpc(
+      'get_spots_by_ids',
+      params: {'p_ids': spotIds},
+    );
+
+    return (spotsRes as List).cast<Map<String, dynamic>>().map((s) {
+      return SpotModel.fromJson({
+        ...s,
+        'trust_score': s['trust_score'] ?? 0.0,
+        'recent_24h_count': s['recent_24h_count'] ?? 0,
+      });
+    }).toList();
+  }
+
+  // ──────────────────────────────────────────────────────────
   // Badge stats
   // ──────────────────────────────────────────────────────────
 
@@ -362,6 +399,7 @@ class ReportRepository {
     }
     final maxNeighborhoodCafes =
         districtGroups.isEmpty ? 0 : districtGroups.values.reduce((a, b) => a > b ? a : b);
+    final uniqueDistrictCount = districtGroups.length;
 
     // B13: max spots from same chain
     final chainGroups = <String, int>{};
@@ -462,6 +500,7 @@ class ReportRepository {
       maxCafesOneDay: maxCafesOneDay,
       totalStickerCount: totalStickerCount,
       memoReportCount: memoReportCount,
+      uniqueDistrictCount: uniqueDistrictCount,
     );
   }
 

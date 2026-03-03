@@ -72,6 +72,8 @@
 			</array>
 		</dict>
 	</dict>
+	<key>GMSApiKey</key>
+	<string>AIzaSyBigJrMfUqNTkMyoy_rOli5M1PRdP2YDOU</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

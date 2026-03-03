@@ -9,7 +9,9 @@ import AVFoundation
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GMSServices.provideAPIKey("AIzaSyBigJrMfUqNTkMyoy_rOli5M1PRdP2YDOU")
+    // Read Maps API key from Info.plist (set GMSApiKey entry; use xcconfig for CI).
+    let mapsApiKey = Bundle.main.object(forInfoDictionaryKey: "GMSApiKey") as? String ?? ""
+    GMSServices.provideAPIKey(mapsApiKey)
 
     // LaunchScreen → Flutter 첫 프레임 사이 flash 방지
     // Flutter SharedPreferences는 NSUserDefaults에 "flutter." 접두사로 저장됨

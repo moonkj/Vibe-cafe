@@ -57,7 +57,10 @@ class MapController extends Notifier<MapState> {
 
   @override
   MapState build() {
-    ref.onDispose(() => _debounceTimer?.cancel());
+    ref.onDispose(() {
+      _debounceTimer?.cancel();
+      mapController?.dispose();
+    });
     _initLocation();
     // Seed brand cafes from bundled JSON (runs once per install, non-blocking)
     unawaited(SeedService.seedIfNeeded(ref.read(supabaseClientProvider)));

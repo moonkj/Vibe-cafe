@@ -4,11 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-// Google Maps API key — same key used in AppDelegate.swift
-const _mapsApiKey = String.fromEnvironment(
-  'MAPS_API_KEY',
-  defaultValue: 'AIzaSyBigJrMfUqNTkMyoy_rOli5M1PRdP2YDOU',
-);
+// Google Maps API key — must be supplied via --dart-define=MAPS_API_KEY=... at build time.
+// No fallback defaultValue: an empty key surfaces API errors immediately rather than
+// shipping a hardcoded key in source control.
+const _mapsApiKey = String.fromEnvironment('MAPS_API_KEY', defaultValue: '');
 
 class PlacePrediction {
   final String placeId;

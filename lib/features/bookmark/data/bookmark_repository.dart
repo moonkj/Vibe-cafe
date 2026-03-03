@@ -11,7 +11,11 @@ class BookmarkRepository {
   const BookmarkRepository(this._client);
   final SupabaseClient _client;
 
-  String get _userId => _client.auth.currentUser!.id;
+  String get _userId {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) throw StateError('북마크 기능은 로그인이 필요합니다.');
+    return uid;
+  }
 
   /// 해당 spot이 북마크됐는지 확인
   Future<bool> isBookmarked(String spotId) async {

@@ -60,16 +60,16 @@ class ReportController extends Notifier<ReportState> {
   int _elapsed = 0;
   final List<double> _recentReadings = [];
 
-  // GPS focused 3-second sampling at measurement start
+  // GPS focused 5-second sampling at measurement start
   StreamSubscription<Position>? _gpsSub;
   Timer? _gpsCollectionTimer;
   final List<Position> _gpsSamples = [];
-  Position? _bestGpsPosition; // resolved after 3s collection window
+  Position? _bestGpsPosition; // resolved after 5s collection window
 
   // Good GPS quality threshold (matches proximity gate radius)
-  static const double _gpsAccuracyThresholdM = 50.0;
+  static const double _gpsAccuracyThresholdM = 30.0;
   // Duration to collect GPS samples when measurement starts
-  static const Duration _gpsCollectionDuration = Duration(seconds: 3);
+  static const Duration _gpsCollectionDuration = Duration(seconds: 5);
 
   // Empty string = new spot (will be created on submit)
   String _spotId = '';
@@ -111,7 +111,7 @@ class ReportController extends Notifier<ReportState> {
 
   /// Begin dB measurement.
   /// Audio is processed in-memory only — never stored or transmitted.
-  /// GPS sampling starts in parallel for 3 seconds — best accuracy sample
+  /// GPS sampling starts in parallel for 5 seconds — best accuracy sample
   /// (horizontalAccuracy ≤ 30m preferred) is cached for proximity checks.
   void startMeasurement() {
     if (state.phase == ReportPhase.measuring || state.phase == ReportPhase.stabilizing) return;
@@ -190,7 +190,7 @@ class ReportController extends Notifier<ReportState> {
     _gpsSamples.clear();
   }
 
-  /// Focused 3-second GPS sampling at measurement start.
+  /// Focused 5-second GPS sampling at measurement start.
   /// Collects all incoming position fixes into [_gpsSamples], then after
   /// [_gpsCollectionDuration] resolves to the best quality sample.
   ///
@@ -218,12 +218,12 @@ class ReportController extends Notifier<ReportState> {
         _gpsSamples.add(pos);
       });
 
-      // After 3 seconds, stop stream and resolve best position
+      // After 5 seconds, stop stream and resolve best position
       _gpsCollectionTimer = Timer(_gpsCollectionDuration, _resolveGpsPosition);
     });
   }
 
-  /// Called after the 3-second collection window ends.
+  /// Called after the 5-second collection window ends.
   /// Picks the best GPS sample, preferring high-accuracy fixes.
   void _resolveGpsPosition() {
     _gpsSub?.cancel();
@@ -276,7 +276,7 @@ class ReportController extends Notifier<ReportState> {
 
     try {
       // Use resolved GPS sample; fall back to a fresh fix if sampling hasn't
-      // completed yet (e.g., called before the 3s window expires at start button)
+      // completed yet (e.g., called before the 5s window expires at start button)
       final pos = _bestGpsPosition ?? await LocationService.getCurrentPosition();
       final dist = LocationService.distanceMeters(
         userLat: pos.latitude,
@@ -310,6 +310,11 @@ class ReportController extends Notifier<ReportState> {
     String? tagText,
     String? moodTag,
   }) async {
+    // Guard against double-tap: ignore if already submitting or done
+    if (state.phase == ReportPhase.submitting ||
+        state.phase == ReportPhase.done) {
+      return;
+    }
     state = state.copyWith(
       selectedSticker: sticker,
       phase: ReportPhase.submitting,
