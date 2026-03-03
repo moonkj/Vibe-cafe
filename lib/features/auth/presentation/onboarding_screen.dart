@@ -12,8 +12,8 @@ import 'widgets/flowing_wave_painter.dart';
 
 // Feature highlights data
 const _kFeatures = [
-  (icon: Icons.graphic_eq_rounded, label: '실시간 소음 측정', desc: '카페의 실제 소음을 dB로 기록'),
-  (icon: Icons.explore_outlined, label: '주변 카페 탐색', desc: '조용한 카페를 지도에서 한눈에'),
+  (icon: Icons.graphic_eq_rounded, label: '바이브 체크', desc: '카페 분위기를 직접 측정해요'),
+  (icon: Icons.explore_outlined, label: '주변 카페 탐색', desc: '내 취향에 맞는 카페를 한눈에'),
   (icon: Icons.emoji_events_outlined, label: '랭킹 & 뱃지', desc: '측정 기여로 배지를 모아보세요'),
 ];
 
@@ -90,7 +90,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     // 흐르는 파형 — 6초 주기로 무한 반복
     _waveController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 8),
+      duration: const Duration(seconds: 12),
     )..repeat();
 
     // 1.5초 후 로그인 버튼 페이드인
@@ -169,7 +169,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 const Spacer(flex: 2),
                 // 흐르는 파형 애니메이션
                 SizedBox(
-                  height: 180,
+                  height: 170,
                   child: AnimatedBuilder(
                     animation: _waveController,
                     builder: (context, _) => CustomPaint(
@@ -177,7 +177,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                         animation: _waveController.value,
                         isDark: isDark,
                       ),
-                      size: const Size(double.infinity, 180),
+                      size: const Size(double.infinity, 170),
                     ),
                   ),
                 ),

@@ -40,6 +40,18 @@ class ReportRepository {
         .limit(1);
     final hasReportedToday = (todayResp as List).isNotEmpty;
 
+    // Block: 같은 카페를 오늘 이미 측정했는지 확인
+    final todaySpotResp = await _client
+        .from('reports')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('spot_id', spotId)
+        .gte('created_at', todayStart)
+        .limit(1);
+    if ((todaySpotResp as List).isNotEmpty) {
+      throw Exception('오늘 이미 이 카페를 측정했어요.\n내일 다시 측정할 수 있어요.');
+    }
+
     // XP check 2: first time at this cafe?
     final prevResp = await _client
         .from('reports')
@@ -82,6 +94,23 @@ class ReportRepository {
         });
       } catch (_) {}
     }
+  }
+
+  /// 오늘 이미 해당 카페를 측정했는지 사전 확인 (측정 시작 전 호출).
+  Future<bool> hasAlreadyMeasuredToday(String spotId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return false;
+    final todayStart = DateTime.now().toUtc().copyWith(
+      hour: 0, minute: 0, second: 0, millisecond: 0, microsecond: 0,
+    ).toIso8601String();
+    final resp = await _client
+        .from('reports')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('spot_id', spotId)
+        .gte('created_at', todayStart)
+        .limit(1);
+    return (resp as List).isNotEmpty;
   }
 
   /// Fetch user's own reports, newest first.

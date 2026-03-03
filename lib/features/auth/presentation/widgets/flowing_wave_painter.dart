@@ -2,14 +2,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 
-/// Continuously flowing sine wave animation for the onboarding screen.
-///
-/// Three overlapping waves with different frequencies and phase speeds
-/// create a rich audio-visualizer feel. The primary wave uses the brand
-/// gradient; secondary and tertiary waves are tinted flat colors.
-///
-/// [animation] — repeating 0.0–1.0 value (drives phase offset)
-/// [isDark]    — adapts opacity/color for light vs dark background
 class FlowingWavePainter extends CustomPainter {
   final double animation;
   final bool isDark;
@@ -20,63 +12,134 @@ class FlowingWavePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
-    final cy = h / 2;
+    final cy = h * 0.5;
 
-    // Wave layer definitions:
-    //   (amplitude as fraction of height, frequency in cycles, phase speed multiplier)
-    // speedMult > 0  → flows rightward
-    // speedMult < 0  → flows leftward (subtle counter-motion)
-    const layers = [
-      (ampRatio: 0.30, freq: 1.5,  speed: 1.0 ),  // primary — gradient
-      (ampRatio: 0.20, freq: 2.6,  speed: -0.65),  // secondary — skyBlue
-      (ampRatio: 0.12, freq: 3.9,  speed: 1.35 ),  // tertiary — faint
-    ];
+    _paintRibbon(canvas, w, h, cy);
+    _paintGlowParticles(canvas, w, h, cy);
+    _paintMusicNotes(canvas, w, h, cy);
+  }
 
-    final gradientShader = LinearGradient(
+  void _paintRibbon(Canvas canvas, double w, double h, double cy) {
+    final phase = animation * 2 * math.pi;
+    final alphaBase = isDark ? 1.0 : 0.85;
+
+    const lineCount = 16;
+    final ribbonHalfWidth = h * 0.25;
+
+    final heroShader = LinearGradient(
       colors: [
-        AppColors.mintGreen.withValues(alpha: isDark ? 0.92 : 0.80),
-        AppColors.skyBlue.withValues(alpha: isDark ? 0.92 : 0.80),
+        AppColors.mintGreen.withValues(alpha: 0.85 * alphaBase),
+        AppColors.skyBlue.withValues(alpha: 0.70 * alphaBase),
       ],
-      begin: Alignment.centerLeft,
-      end: Alignment.centerRight,
     ).createShader(Rect.fromLTWH(0, 0, w, h));
 
-    for (int i = 0; i < layers.length; i++) {
-      final layer = layers[i];
-      final amp   = h * layer.ampRatio;
-      final phase = animation * 2 * math.pi * layer.speed;
+    for (int i = 0; i < lineCount; i++) {
+      final t = (i - (lineCount - 1) / 2) / ((lineCount - 1) / 2);
+      final absT = t.abs();
+      final ribbonOffset = t * ribbonHalfWidth;
+      final opacity = (0.08 + 0.62 * (1.0 - absT)) * alphaBase;
+      final sw = 0.6 + 1.6 * (1.0 - absT);
+      final linePhase = phase + i * 0.06;
 
       final path = Path();
-      const steps = 240; // enough resolution for a smooth curve
+      const steps = 200;
+
       for (int j = 0; j <= steps; j++) {
-        final x = w * j / steps;
-        final y = cy + amp * math.sin(layer.freq * 2 * math.pi * j / steps + phase);
+        final nx = j / steps;
+        final x = w * nx;
+
+        final wave1 = math.sin(nx * 0.7 * 2 * math.pi + linePhase);
+        final wave2 = math.sin(nx * 1.3 * 2 * math.pi + linePhase * 0.8) * 0.25;
+        final wave = wave1 + wave2;
+
+        final mainAmp = h * 0.28;
+
+        final spread = wave.abs().clamp(0.2, 1.0);
+        final dynamicOffset = ribbonOffset * (0.4 + 0.6 * spread);
+
+        final y = cy + mainAmp * wave + dynamicOffset;
         j == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
       }
 
-      final Paint paint;
-      if (i == 0) {
-        // Primary wave: brand gradient
-        paint = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..shader = gradientShader;
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = sw
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+
+      if (absT < 0.25) {
+        paint.shader = heroShader;
       } else {
-        // Secondary / tertiary: flat tint
-        final t = i / (layers.length - 1);
-        final color = Color.lerp(AppColors.mintGreen, AppColors.skyBlue, t)!
-            .withValues(alpha: (i == 1 ? 0.50 : 0.25) * (isDark ? 1.0 : 0.85));
-        paint = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = i == 1 ? 1.6 : 1.0
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..color = color;
+        final colorT = (t + 1) / 2;
+        paint.color =
+            Color.lerp(AppColors.mintGreen, AppColors.skyBlue, colorT)!
+                .withValues(alpha: opacity);
       }
 
       canvas.drawPath(path, paint);
+    }
+  }
+
+  void _paintGlowParticles(Canvas canvas, double w, double h, double cy) {
+    final rng = math.Random(42);
+    final alphaBoost = isDark ? 1.0 : 0.85;
+
+    const count = 14;
+    for (int i = 0; i < count; i++) {
+      final baseX = rng.nextDouble() * w;
+      final baseY = cy + (rng.nextDouble() - 0.5) * h * 0.8;
+
+      final p = (animation * 0.5 + i / count) % 1.0;
+      final dx = baseX + math.sin(p * 2 * math.pi + i) * 8;
+      final dy = baseY - p * 14;
+
+      final opacity =
+          (math.sin(p * math.pi) * 0.5 * alphaBoost).clamp(0.05, 0.5);
+      final radius = 2.0 + rng.nextDouble() * 2.5;
+
+      final glowPaint = Paint()
+        ..color = AppColors.mintGreen.withValues(alpha: opacity * 0.3)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+      canvas.drawCircle(Offset(dx, dy), radius * 2.5, glowPaint);
+
+      final color = i.isEven
+          ? AppColors.mintGreen.withValues(alpha: opacity)
+          : AppColors.skyBlue.withValues(alpha: opacity * 0.8);
+      canvas.drawCircle(Offset(dx, dy), radius, Paint()..color = color);
+    }
+  }
+
+  void _paintMusicNotes(Canvas canvas, double w, double h, double cy) {
+    final rng = math.Random(77);
+    const notes = ['♪', '♫', '♪', '♫', '♪', '♪'];
+    final alphaBoost = isDark ? 1.0 : 0.85;
+
+    for (int i = 0; i < notes.length; i++) {
+      final baseX = w * 0.08 + rng.nextDouble() * w * 0.84;
+      final baseY = cy + (rng.nextDouble() - 0.5) * h * 0.7;
+
+      final p = (animation * 0.4 + i / notes.length) % 1.0;
+      final dx = baseX + math.sin(p * 2 * math.pi + i * 1.2) * 12;
+      final dy = baseY - p * 24;
+
+      final opacity =
+          (math.sin(p * math.pi) * 0.42 * alphaBoost).clamp(0.0, 0.42);
+      if (opacity < 0.04) continue;
+
+      final fontSize = 14.0 + rng.nextDouble() * 6.0;
+
+      final tp = TextPainter(
+        text: TextSpan(
+          text: notes[i],
+          style: TextStyle(
+            fontSize: fontSize,
+            color: AppColors.mintGreen.withValues(alpha: opacity),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      tp.paint(canvas, Offset(dx, dy));
     }
   }
 

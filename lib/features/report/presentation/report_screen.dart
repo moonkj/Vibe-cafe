@@ -218,6 +218,31 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                 if (!_isNewSpot) {
                   setState(() => _isCheckingLocation = true);
                   try {
+                    // 오늘 이미 측정했는지 사전 확인
+                    final alreadyMeasured = await ref
+                        .read(reportRepositoryProvider)
+                        .hasAlreadyMeasuredToday(widget.spotId!);
+                    if (alreadyMeasured) {
+                      if (!mounted) return;
+                      await showDialog<void>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('오늘은 이미 측정했어요'),
+                          content: const Text(
+                            '같은 카페는 하루에 한 번만 측정할 수 있어요.\n내일 다시 방문해서 바이브를 기록해보세요! 🎧',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: const Text('확인',
+                                  style: TextStyle(color: AppColors.mintGreen)),
+                            ),
+                          ],
+                        ),
+                      );
+                      return;
+                    }
+
                     final isNear = await controller.verifyProximity();
                     if (!isNear) {
                       if (!mounted) return;

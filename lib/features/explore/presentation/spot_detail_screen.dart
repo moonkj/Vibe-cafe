@@ -48,17 +48,6 @@ String _timeAgo(DateTime? dt) {
 
 List<String> _deriveVibeTags(SpotModel spot) {
   final tags = <String>[];
-  // dB 기반 태그는 스티커가 없을 때만 추가 (스티커와 모순 방지)
-  if (spot.representativeSticker == null) {
-    if (spot.averageDb < 45) {
-      tags.add('#속삭임');
-    } else if (spot.averageDb < 60) {
-      tags.add('#소곤소곤');
-    } else {
-      tags.add('#웅성웅성');
-    }
-  }
-
   if (spot.representativeSticker != null) {
     tags.add('#${spot.representativeSticker!.label}');
   }
@@ -625,7 +614,7 @@ class _VibeTagsCard extends StatelessWidget {
     }
     final sorted = freq.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    return sorted.map((e) => '#${e.key}').toList();
+    return sorted.map((e) => '#${e.key.replaceFirst(RegExp(r'^#+'), '')}').toList();
   }
 
   @override
