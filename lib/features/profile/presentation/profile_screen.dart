@@ -76,7 +76,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -134,7 +134,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final adminPreview = isAdmin && ref.watch(adminBadgePreviewProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F6F1),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: statsAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.mintGreen),
@@ -161,17 +161,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             slivers: [
               // ── AppBar ──
               SliverAppBar(
-                backgroundColor: Colors.white,
+                backgroundColor: Theme.of(context).colorScheme.surface,
                 floating: true,
                 pinned: false,
                 automaticallyImplyLeading: false,
                 elevation: 0,
-                title: const Text(
+                title: Text(
                   '프로필',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A1A),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 actions: [
@@ -315,7 +315,7 @@ class _ProfileHeader extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -378,10 +378,10 @@ class _ProfileHeader extends ConsumerWidget {
               children: [
                 Text(
                   displayName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A1A),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -483,7 +483,7 @@ class _BadgePickerSheetState extends State<_BadgePickerSheet> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: Theme.of(context).dividerColor,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -493,12 +493,12 @@ class _BadgePickerSheetState extends State<_BadgePickerSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Row(
                 children: [
-                  const Text(
+                  Text(
                     '대표 뱃지 선택',
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A1A1A),
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const Spacer(),
@@ -508,11 +508,11 @@ class _BadgePickerSheetState extends State<_BadgePickerSheet> {
                         widget.onClear();
                         Navigator.pop(context);
                       },
-                      child: const Text(
+                      child: Text(
                         '기본으로 되돌리기',
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.grey,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                         ),
                       ),
                     ),
@@ -528,7 +528,9 @@ class _BadgePickerSheetState extends State<_BadgePickerSheet> {
                   badges.isEmpty
                       ? '아직 획득한 뱃지가 없어요'
                       : '획득한 뱃지 중 프로필에 표시할 1개를 선택하세요',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                 ),
               ),
             ),
@@ -538,7 +540,8 @@ class _BadgePickerSheetState extends State<_BadgePickerSheet> {
                   ? Center(
                       child: Text(
                         '뱃지를 획득하면 여기에 표시돼요 🏅',
-                        style: TextStyle(color: Colors.grey.shade400),
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)),
                       ),
                     )
                   : GridView.builder(
@@ -643,7 +646,7 @@ class _LevelCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -666,17 +669,19 @@ class _LevelCard extends StatelessWidget {
                   children: [
                     Text(
                       'Lv.${level.level} ${level.name}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A1A),
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     Text(
                       level.isMax
                           ? '최고 레벨 달성!'
                           : '다음 레벨까지 ${level.nextTarget - level.currentXp} XP',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                     ),
                   ],
                 ),
@@ -700,11 +705,15 @@ class _LevelCard extends StatelessWidget {
               children: [
                 Text(
                   '${level.currentXp} XP',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                 ),
                 Text(
                   '${level.nextTarget} XP',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                 ),
               ],
             ),
@@ -773,7 +782,7 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -798,7 +807,9 @@ class _StatCard extends StatelessWidget {
             ),
             Text(
               label,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
             ),
           ],
         ),
@@ -822,12 +833,12 @@ class _BadgeSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Text(
+            Text(
               '획득 뱃지',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF1A1A1A),
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(width: 8),
@@ -835,7 +846,7 @@ class _BadgeSection extends StatelessWidget {
               '$unlockedCount / ${badges.length}',
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.grey.shade500,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
             const Spacer(),
@@ -883,12 +894,14 @@ class _BadgeTile extends StatelessWidget {
         width: 80,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: badge.unlocked ? Colors.white : const Color(0xFFF5F5F5),
+          color: badge.unlocked
+              ? Theme.of(context).colorScheme.surface
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: badge.unlocked
                 ? AppColors.mintGreen.withValues(alpha: 0.3)
-                : Colors.grey.shade200,
+                : Theme.of(context).dividerColor,
           ),
           boxShadow: badge.unlocked
               ? [
@@ -913,7 +926,9 @@ class _BadgeTile extends StatelessWidget {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: badge.unlocked ? const Color(0xFF1A1A1A) : Colors.grey.shade400,
+                color: badge.unlocked
+                    ? Theme.of(context).colorScheme.onSurface
+                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
               ),
               textAlign: TextAlign.center,
               maxLines: 2,
@@ -940,7 +955,7 @@ class _ReportTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -982,10 +997,10 @@ class _ReportTile extends StatelessWidget {
               children: [
                 Text(
                   report.spotName ?? '알 수 없는 카페',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A1A1A),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1028,7 +1043,9 @@ class _ReportTile extends StatelessWidget {
                     const Spacer(),
                     Text(
                       _timeAgo(report.createdAt),
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                     ),
                   ],
                 ),
@@ -1038,7 +1055,7 @@ class _ReportTile extends StatelessWidget {
                     '"${report.moodTag}"',
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.grey.shade600,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
                       fontStyle: FontStyle.italic,
                     ),
                     maxLines: 1,
@@ -1117,9 +1134,9 @@ class _AllReportsSheet extends StatelessWidget {
       maxChildSize: 0.8,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             children: [
@@ -1128,7 +1145,7 @@ class _AllReportsSheet extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: Theme.of(context).dividerColor,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),

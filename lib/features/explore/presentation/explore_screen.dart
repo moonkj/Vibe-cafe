@@ -69,7 +69,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final userPos = ref.watch(currentPositionProvider).asData?.value;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F6F1),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: spotsAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.mintGreen),
@@ -109,14 +109,14 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                       contentPadding: const EdgeInsets.symmetric(vertical: 10),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+                        borderSide: BorderSide(color: Theme.of(context).dividerColor),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+                        borderSide: BorderSide(color: Theme.of(context).dividerColor),
                       ),
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: Theme.of(context).colorScheme.surface,
                     ),
                   ),
                 ),
@@ -166,17 +166,17 @@ class _ExploreAppBar extends SliverPersistentHeaderDelegate {
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     final top = MediaQuery.of(context).padding.top;
     return Container(
-      color: const Color(0xFFF8F6F1),
+      color: Theme.of(context).scaffoldBackgroundColor,
       padding: EdgeInsets.only(top: top, left: 20, right: 20, bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
             AppStrings.exploreTitle,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF1A1A1A),
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(width: 10),
@@ -242,7 +242,7 @@ class _FilterRow extends StatelessWidget {
             )),
             // 구분선
             const SizedBox(width: 4),
-            Container(width: 1, height: 28, margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4), color: Colors.grey.shade300),
+            Container(width: 1, height: 28, margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4), color: Theme.of(context).dividerColor),
             const SizedBox(width: 4),
             // 정렬
             _Chip(
@@ -287,10 +287,10 @@ class _Chip extends StatelessWidget {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: isActive ? AppColors.mintGreen : Colors.white,
+            color: isActive ? AppColors.mintGreen : Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isActive ? AppColors.mintGreen : Colors.grey.shade300,
+              color: isActive ? AppColors.mintGreen : Theme.of(context).dividerColor,
             ),
           ),
           child: Text(
@@ -298,7 +298,9 @@ class _Chip extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-              color: isActive ? Colors.white : const Color(0xFF555555),
+              color: isActive
+                  ? Colors.white
+                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
         ),
@@ -308,12 +310,42 @@ class _Chip extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────
-// Cafe List Tile
+// Cafe List Tile — visual card with dB bar + press animation
 // ──────────────────────────────────────────────────────────────
-class _CafeListTile extends StatelessWidget {
+class _CafeListTile extends StatefulWidget {
   final SpotModel spot;
   final Position? userPos;
   const _CafeListTile({required this.spot, this.userPos});
+
+  @override
+  State<_CafeListTile> createState() => _CafeListTileState();
+}
+
+class _CafeListTileState extends State<_CafeListTile>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pressCtrl;
+  late Animation<double> _pressScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _pressCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    );
+    _pressScale = Tween<double>(begin: 1.0, end: 0.97).animate(
+      CurvedAnimation(parent: _pressCtrl, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pressCtrl.dispose();
+    super.dispose();
+  }
+
+  SpotModel get spot => widget.spot;
+  Position? get userPos => widget.userPos;
 
   String? _distanceLabel() {
     if (userPos == null) return null;
@@ -330,105 +362,158 @@ class _CafeListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sticker = spot.representativeSticker;
-    final dbColor = spot.reportCount == 0
-        ? const Color(0xFFBBBBBB)
-        : AppColors.dbColor(spot.averageDb);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasData = spot.reportCount > 0;
+    final dbColor = hasData
+        ? AppColors.dbColor(spot.averageDb)
+        : (isDark ? AppColors.darkDisabled : const Color(0xFFBBBBBB));
     final distLabel = _distanceLabel();
+    final subTextColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: dbColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: dbColor.withValues(alpha: 0.35),
-              width: 1.5,
-            ),
-          ),
-          child: Center(
-            child: Icon(Icons.local_cafe_rounded, size: 22, color: dbColor),
-          ),
-        ),
-        title: Text(
-          spot.name,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF1A1A1A),
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (spot.formattedAddress != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                spot.formattedAddress!,
-                style: const TextStyle(fontSize: 12, color: Color(0xFF888888)),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                if (sticker != null) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: dbColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '${sticker.label} ${spot.averageDb.toStringAsFixed(0)}dB',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: dbColor,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Icon(Icons.bar_chart, size: 13, color: Colors.grey.shade400),
-                const SizedBox(width: 2),
-                Text(
-                  '${spot.reportCount}회 측정',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                ),
-                if (distLabel != null) ...[
-                  const SizedBox(width: 8),
-                  Icon(Icons.near_me_rounded, size: 12, color: Colors.grey.shade400),
-                  const SizedBox(width: 2),
-                  Text(
-                    distLabel,
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                  ),
-                ],
-              ],
+    return GestureDetector(
+      onTapDown: (_) => _pressCtrl.forward(),
+      onTapUp: (_) {
+        _pressCtrl.reverse();
+        context.push('/spot/${spot.id}', extra: spot);
+      },
+      onTapCancel: () => _pressCtrl.reverse(),
+      child: AnimatedBuilder(
+        animation: _pressScale,
+        builder: (context, child) => Transform.scale(scale: _pressScale.value, child: child),
+        child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
-        trailing: Icon(Icons.chevron_right, color: Colors.grey.shade300),
-        onTap: () => context.push('/spot/${spot.id}', extra: spot),
-      ),
-    );
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Row(
+            children: [
+              // ── Left dB color bar ──────────────────────────────
+              Container(
+                width: 5,
+                height: 86,
+                color: dbColor,
+              ),
+              // ── Content ───────────────────────────────────────
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // ── Main info ────────────────────────────
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              spot.name,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (spot.formattedAddress != null) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                spot.formattedAddress!,
+                                style: TextStyle(fontSize: 12, color: subTextColor),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                if (sticker != null) ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: dbColor.withValues(alpha: 0.13),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      sticker.label,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: dbColor,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                                Icon(Icons.bar_chart, size: 12, color: subTextColor),
+                                const SizedBox(width: 2),
+                                Text(
+                                  '${spot.reportCount}회',
+                                  style: TextStyle(fontSize: 11, color: subTextColor),
+                                ),
+                                if (distLabel != null) ...[
+                                  const SizedBox(width: 8),
+                                  Icon(Icons.near_me_rounded, size: 11, color: subTextColor),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    distLabel,
+                                    style: TextStyle(fontSize: 11, color: subTextColor),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      // ── dB number ────────────────────────────
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            hasData ? spot.averageDb.toStringAsFixed(0) : '--',
+                            style: TextStyle(
+                              fontSize: 30,
+                              fontWeight: FontWeight.w800,
+                              color: dbColor,
+                              height: 1.0,
+                            ),
+                          ),
+                          Text(
+                            'dB',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: dbColor.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.25),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        ),  // Container
+      ),    // AnimatedBuilder
+    );      // GestureDetector
   }
 }
 
@@ -440,20 +525,21 @@ class _EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final subColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.35);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.coffee_outlined, size: 64, color: Colors.grey.shade300),
+          Icon(Icons.coffee_outlined, size: 64, color: subColor),
           const SizedBox(height: 16),
           Text(
             AppStrings.exploreEmpty,
-            style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
           ),
           const SizedBox(height: 8),
           Text(
             '첫 번째 카페를 등록해 보세요!',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+            style: TextStyle(fontSize: 13, color: subColor),
           ),
         ],
       ),
@@ -471,9 +557,12 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.wifi_off_outlined, size: 48, color: Colors.grey.shade300),
+          Icon(Icons.wifi_off_outlined, size: 48, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
           const SizedBox(height: 12),
-          Text('위치를 불러올 수 없어요', style: TextStyle(color: Colors.grey.shade600)),
+          Text(
+            '위치를 불러올 수 없어요',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
+          ),
           const SizedBox(height: 12),
           TextButton(
             onPressed: onRetry,

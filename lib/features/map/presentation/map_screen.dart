@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -27,6 +28,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   GoogleMapController? _mapController;
   double _currentZoom = MapConstants.defaultZoom;
   SpotModel? _selectedSpot;
+  Brightness? _lastBrightness;
+  String? _mapStyleString;
 
   // Search result selection state
   PlacePrediction? _searchPrediction;
@@ -52,6 +55,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget build(BuildContext context) {
     final mapState = ref.watch(mapControllerProvider);
     final displayMode = MapController.displayMode(_currentZoom);
+
+    // Apply map style when brightness changes
+    final brightness = Theme.of(context).brightness;
+    if (_lastBrightness != brightness) {
+      _lastBrightness = brightness;
+      _loadMapStyle(brightness);
+    }
 
     // 탐색 탭에서 "지도에서 보기" 요청 처리
     ref.listen(mapFocusProvider, (prev, focus) {
@@ -99,6 +109,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           // Google Map
           GoogleMap(
             initialCameraPosition: _initialCamera,
+            style: _mapStyleString,
             myLocationEnabled: true,
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
@@ -167,7 +178,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.92),
+                    color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.92),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
@@ -209,28 +220,42 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ),
           ),
 
-          // Spot info card (tap on existing marker)
-          if (_selectedSpot != null && _searchPrediction == null)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: SpotInfoCard(
-                spot: _selectedSpot!,
-                onReport: () {
-                  context.push(
-                    '/report'
-                    '?spotId=${_selectedSpot!.id}'
-                    '&spotName=${Uri.encodeComponent(_selectedSpot!.name)}'
-                    '&lat=${_selectedSpot!.lat}'
-                    '&lng=${_selectedSpot!.lng}',
-                  );
-                },
-                onDetail: () {
-                  context.push('/spot/${_selectedSpot!.id}', extra: _selectedSpot!);
-                },
+          // Spot info card (tap on existing marker) — slides up from bottom
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) => SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 1),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: FadeTransition(opacity: animation, child: child),
               ),
+              child: (_selectedSpot != null && _searchPrediction == null)
+                  ? SpotInfoCard(
+                      key: ValueKey(_selectedSpot!.id),
+                      spot: _selectedSpot!,
+                      onReport: () {
+                        context.push(
+                          '/report'
+                          '?spotId=${_selectedSpot!.id}'
+                          '&spotName=${Uri.encodeComponent(_selectedSpot!.name)}'
+                          '&lat=${_selectedSpot!.lat}'
+                          '&lng=${_selectedSpot!.lng}',
+                        );
+                      },
+                      onDetail: () {
+                        context.push('/spot/${_selectedSpot!.id}', extra: _selectedSpot!);
+                      },
+                    )
+                  : const SizedBox.shrink(),
             ),
+          ),
 
           // Search place card (search result selected, not yet a spot)
           if (_searchPrediction != null)
@@ -265,7 +290,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   _searchMarker = null;
                 });
               },
-              backgroundColor: Colors.white,
+              backgroundColor: Theme.of(context).colorScheme.surface,
               foregroundColor: AppColors.mintGreen,
               elevation: 4,
               child: const Icon(Icons.my_location_rounded),
@@ -356,6 +381,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     } catch (e, st) {
       debugPrint('[MapScreen] _rebuildMarkersAsync error: $e\n$st');
     }
+  }
+
+  Future<void> _loadMapStyle(Brightness brightness) async {
+    final path = brightness == Brightness.dark
+        ? 'assets/map_style_dark.json'
+        : 'assets/map_style_light.json';
+    final style = await rootBundle.loadString(path);
+    if (mounted) setState(() => _mapStyleString = style);
   }
 
   void _moveToUserLocation() {
@@ -512,7 +545,7 @@ class _SearchPlaceCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -651,7 +684,7 @@ class _SearchBarState extends ConsumerState<_SearchBar> {
           Container(
             height: 48,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
@@ -689,7 +722,7 @@ class _SearchBarState extends ConsumerState<_SearchBar> {
             Container(
               margin: const EdgeInsets.only(top: 4),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(

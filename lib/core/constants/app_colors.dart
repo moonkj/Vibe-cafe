@@ -82,4 +82,20 @@ class AppColors {
     if (db < 85) return dbLoud;
     return dbVeryLoud;
   }
+
+  // ── Dark Mode Tokens ────────────────────────────────────────────
+  static const Color darkBgBase      = Color(0xFF121212); // Scaffold 배경
+  static const Color darkBgSurface   = Color(0xFF1E1E1E); // 카드, AppBar, 모달
+  static const Color darkBgCard      = Color(0xFF2C2C2C); // 카드 내부 섹션
+  static const Color darkBgSecondary = Color(0xFF242424); // 구분 섹션 배경
+
+  static const Color darkTextPrimary   = Color(0xFFF0EDE6); // 주요 텍스트 (웜 화이트)
+  static const Color darkTextSecondary = Color(0xFFA0ADA0); // 보조 텍스트
+  static const Color darkTextHint      = Color(0xFF555E5A); // 힌트 텍스트
+
+  static const Color darkDivider  = Color(0xFF2E3530); // 구분선
+  static const Color darkDisabled = Color(0xFF4A5250); // 비활성 아이콘/마커
+
+  // Accent (공통)
+  static const Color accentCoral = Color(0xFFFF8C69); // 알림·강조 포인트
 }

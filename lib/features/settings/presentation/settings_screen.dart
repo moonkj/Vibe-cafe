@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/admin_config.dart';
+import '../../../core/services/theme_mode_service.dart';
 import '../../../core/services/admin_dummy_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/badge_service.dart';
@@ -117,12 +118,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final top = MediaQuery.of(context).padding.top;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F6F1),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           // ── Custom AppBar ──
           Container(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             padding: EdgeInsets.only(top: top),
             child: Row(
               children: [
@@ -130,13 +131,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
                   onPressed: () => context.go('/profile'),
                 ),
-                const Expanded(
+                Expanded(
                   child: Text(
                     '설정',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A1A1A),
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -151,6 +152,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 12),
               children: [
+                // ── 화면 설정 ──────────────────────────────────────────
+                _SectionHeader('화면 설정'),
+                _ThemeModeTile(),
+
                 // ── 계정 정보 ──────────────────────────────────────────
                 _SectionHeader('계정 정보'),
                 _SettingsTile(
@@ -160,7 +165,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     nickname ?? '설정 안 됨',
                     style: TextStyle(
                       fontSize: 14,
-                      color: nickname != null ? const Color(0xFF1A1A1A) : Colors.grey.shade400,
+                      color: nickname != null
+                          ? Theme.of(context).colorScheme.onSurface
+                          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                     ),
                   ),
                   onTap: () => _editNickname(context, nickname),
@@ -171,17 +178,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.notifications_outlined, size: 20, color: Colors.grey.shade400),
+                      Icon(Icons.notifications_outlined, size: 20,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           '알림 기능은 업데이트 예정이에요',
-                          style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                          style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                         ),
                       ),
                     ],
@@ -212,7 +222,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   title: '앱 버전',
                   trailing: Text(
                     '1.0.0',
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
+                    style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)),
                   ),
                 ),
                 _SettingsTile(
@@ -720,21 +732,26 @@ class _SettingsTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
-        leading: Icon(icon, size: 20, color: AppColors.textSecondary),
+        leading: Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
         title: Text(
           title,
-          style: const TextStyle(fontSize: 15, color: Color(0xFF1A1A1A)),
+          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface),
         ),
         subtitle: subtitle != null
-            ? Text(subtitle!, style: TextStyle(fontSize: 12, color: Colors.grey.shade500))
+            ? Text(subtitle!,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)))
             : null,
         trailing: trailing ??
             (showArrow
-                ? Icon(Icons.chevron_right, size: 20, color: Colors.grey.shade400)
+                ? Icon(Icons.chevron_right,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4))
                 : null),
         onTap: onTap,
       ),
@@ -742,6 +759,97 @@ class _SettingsTile extends StatelessWidget {
   }
 }
 
+
+class _ThemeModeTile extends ConsumerWidget {
+  const _ThemeModeTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(themeModeProvider);
+
+    final options = [
+      (mode: ThemeMode.light, label: '라이트', icon: Icons.light_mode_outlined),
+      (mode: ThemeMode.system, label: '자동', icon: Icons.brightness_auto_outlined),
+      (mode: ThemeMode.dark, label: '다크', icon: Icons.dark_mode_outlined),
+    ];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.contrast_outlined,
+            size: 20,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '화면 테마',
+              style: TextStyle(
+                fontSize: 15,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ),
+          Container(
+            height: 34,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: options.map((opt) {
+                final isSelected = current == opt.mode;
+                return GestureDetector(
+                  onTap: () => ref.read(themeModeProvider.notifier).setMode(opt.mode),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.mintGreen : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          opt.icon,
+                          size: 14,
+                          color: isSelected
+                              ? Colors.white
+                              : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          opt.label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                            color: isSelected
+                                ? Colors.white
+                                : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _PermissionTile extends StatelessWidget {
   final IconData icon;
@@ -763,13 +871,16 @@ class _PermissionTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
-        leading: Icon(icon, size: 20, color: AppColors.textSecondary),
-        title: Text(title, style: const TextStyle(fontSize: 15, color: Color(0xFF1A1A1A))),
-        subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+        leading: Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
+        title: Text(title, style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface)),
+        subtitle: Text(subtitle,
+            style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5))),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

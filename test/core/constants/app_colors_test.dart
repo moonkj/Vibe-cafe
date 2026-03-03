@@ -111,7 +111,7 @@ void main() {
     });
 
     test('텍스트 색상: textPrimary는 완전 불투명 (alpha=255)', () {
-      expect(AppColors.textPrimary.alpha, 255);
+      expect((AppColors.textPrimary.a * 255.0).round().clamp(0, 255), 255);
     });
 
     test('textPrimary ≠ textSecondary', () {

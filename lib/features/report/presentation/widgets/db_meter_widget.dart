@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/db_classifier.dart';
 
 /// Ripple-wave dB meter:
-///  - 3 concentric rings expand from center while measuring
-///  - Ring max-radius and color react to current dB level
-///  - Smooth dB value interpolation between readings
+///  - Charcoal filled circle (radius 100) at center, always visible
+///  - 5 concentric rings expand from center while measuring
+///  - Ring radius and color react to current dB level
+///  - Rolling AnimatedSwitcher for dB number changes
 class DbMeterWidget extends StatefulWidget {
   final double currentDb;
   final bool isMeasuring;
@@ -92,30 +94,44 @@ class _DbMeterWidgetState extends State<DbMeterWidget>
         final animDb = _dbAnim.value;
         final color = DbClassifier.colorFromDb(animDb);
         final label = DbClassifier.labelFromDb(animDb);
+        final inactiveColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3);
 
         return SizedBox(
-          width: 260,
-          height: 260,
+          width: 280,
+          height: 280,
           child: CustomPaint(
             painter: _RipplePainter(
               progress: _rippleController.value,
               db: animDb,
               color: color,
               isMeasuring: widget.isMeasuring,
+              inactiveColor: inactiveColor,
             ),
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    animDb.toStringAsFixed(0),
-                    style: TextStyle(
-                      fontSize: 60,
-                      fontWeight: FontWeight.w300,
-                      color: widget.isMeasuring
-                          ? color
-                          : const Color(0xFFBDBDBD),
-                      height: 1.0,
+                  // Rolling number animation
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, animation) => SlideTransition(
+                      position: Tween(
+                        begin: const Offset(0, -0.3),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: FadeTransition(opacity: animation, child: child),
+                    ),
+                    child: Text(
+                      key: ValueKey(animDb.toStringAsFixed(0)),
+                      animDb.toStringAsFixed(0),
+                      style: TextStyle(
+                        fontSize: 64,
+                        fontWeight: FontWeight.w700,
+                        color: widget.isMeasuring
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.55),
+                        height: 1.0,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -124,8 +140,8 @@ class _DbMeterWidgetState extends State<DbMeterWidget>
                     style: TextStyle(
                       fontSize: 15,
                       color: widget.isMeasuring
-                          ? color.withValues(alpha: 0.7)
-                          : Colors.grey.shade400,
+                          ? Colors.white.withValues(alpha: 0.7)
+                          : Colors.white.withValues(alpha: 0.35),
                       letterSpacing: 1.5,
                     ),
                   ),
@@ -135,9 +151,9 @@ class _DbMeterWidgetState extends State<DbMeterWidget>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 5),
                     decoration: BoxDecoration(
-                      color:
-                          (widget.isMeasuring ? color : Colors.grey.shade400)
-                              .withValues(alpha: 0.12),
+                      color: widget.isMeasuring
+                          ? color.withValues(alpha: 0.15)
+                          : inactiveColor.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -145,9 +161,7 @@ class _DbMeterWidgetState extends State<DbMeterWidget>
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: widget.isMeasuring
-                            ? color
-                            : Colors.grey.shade500,
+                        color: widget.isMeasuring ? color : inactiveColor,
                       ),
                     ),
                   ),
@@ -163,56 +177,77 @@ class _DbMeterWidgetState extends State<DbMeterWidget>
 
 // ─────────────────────────────────────────────
 // Ripple Painter
-// 3 staggered rings expand from center → fade out
+// Charcoal center circle + 5 staggered rings expand from center → fade out
 // ─────────────────────────────────────────────
 class _RipplePainter extends CustomPainter {
   final double progress;
   final double db;
   final Color color;
   final bool isMeasuring;
+  final Color inactiveColor;
 
-  static const int _rings = 3;
+  static const int _rings = 5;
+  static const double _centerRadius = 100.0;
 
   const _RipplePainter({
     required this.progress,
     required this.db,
     required this.color,
     required this.isMeasuring,
+    required this.inactiveColor,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
 
-    // Max ripple radius: maps dB 30→120 to 78→165 px (1.5× original)
-    final normalised = ((db - 30) / 90).clamp(0.0, 1.0);
-    final maxRadius = 78.0 + normalised * 87.0;
+    // Draw charcoal center circle (always visible)
+    canvas.drawCircle(
+      center,
+      _centerRadius,
+      Paint()..color = const Color(0xFF252525),
+    );
 
-    // Center dot — always visible
-    final dotColor = isMeasuring ? color : const Color(0xFFBDBDBD);
+    // Max ripple radius: maps dB 30→120 to 105→200 px
+    final normalised = ((db - 30) / 90).clamp(0.0, 1.0);
+    final maxRadius = 105.0 + normalised * 95.0;
+
+    // Center dot
+    final dotColor = isMeasuring ? color : inactiveColor.withValues(alpha: 0.6);
     canvas.drawCircle(center, 5.5, Paint()..color = dotColor);
 
     if (!isMeasuring) return;
 
-    // 3 rings with 1/3 phase offset each
+    // 5 rings with 1/5 phase offset each, gradient colors
+    final ringColors = _buildRingColors();
+
     for (int i = 0; i < _rings; i++) {
       final phase = (progress + i / _rings) % 1.0;
 
       // Apply ease-out so rings decelerate as they expand
       final easedPhase = 1.0 - (1.0 - phase) * (1.0 - phase);
 
-      final radius = maxRadius * easedPhase;
+      final radius = _centerRadius + (maxRadius - _centerRadius) * easedPhase;
       final opacity = (1.0 - phase).clamp(0.0, 1.0);
 
       canvas.drawCircle(
         center,
         radius,
         Paint()
-          ..color = color.withValues(alpha: opacity * 0.5)
+          ..color = ringColors[i].withValues(alpha: opacity * 0.55)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.2,
+          ..strokeWidth = 2.0,
       );
     }
+  }
+
+  /// Build 5 ring colors sweeping from mintGreen → dbColor based on dB
+  List<Color> _buildRingColors() {
+    // At low dB: all mintGreen. At high dB: blend toward the dB color (warm).
+    return List.generate(_rings, (i) {
+      final t = i / (_rings - 1); // 0.0 → 1.0
+      return Color.lerp(AppColors.mintGreen, color, t * 0.8)!;
+    });
   }
 
   @override
@@ -220,5 +255,6 @@ class _RipplePainter extends CustomPainter {
       old.progress != progress ||
       old.db != db ||
       old.color != color ||
-      old.isMeasuring != isMeasuring;
+      old.isMeasuring != isMeasuring ||
+      old.inactiveColor != inactiveColor;
 }

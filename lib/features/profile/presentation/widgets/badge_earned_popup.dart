@@ -50,7 +50,7 @@ class _BadgeEarnedSheetState extends State<_BadgeEarnedSheet> {
         ),
         padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -103,10 +103,10 @@ class _BadgeEarnedSheetState extends State<_BadgeEarnedSheet> {
             // Badge name
             Text(
               widget.badge.label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF1A1A1A),
+                color: Theme.of(context).colorScheme.onSurface,
               ),
               textAlign: TextAlign.center,
             )
@@ -119,9 +119,9 @@ class _BadgeEarnedSheetState extends State<_BadgeEarnedSheet> {
             // Condition description
             Text(
               widget.badge.condition,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: Color(0xFF888888),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
               ),
               textAlign: TextAlign.center,
             )
@@ -165,7 +165,9 @@ class _BadgeEarnedSheetState extends State<_BadgeEarnedSheet> {
 
             Text(
               '탭하여 닫기',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.35)),
             )
                 .animate(delay: 2200.ms)
                 .fadeIn(duration: 400.ms),

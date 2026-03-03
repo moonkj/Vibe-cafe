@@ -8,7 +8,63 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/services/nickname_service.dart';
 import '../data/auth_repository.dart';
-import 'widgets/wave_to_spot_painter.dart';
+import 'widgets/flowing_wave_painter.dart';
+
+// Feature highlights data
+const _kFeatures = [
+  (icon: Icons.graphic_eq_rounded, label: '실시간 소음 측정', desc: '카페의 실제 소음을 dB로 기록'),
+  (icon: Icons.explore_outlined, label: '주변 카페 탐색', desc: '조용한 카페를 지도에서 한눈에'),
+  (icon: Icons.emoji_events_outlined, label: '랭킹 & 뱃지', desc: '측정 기여로 배지를 모아보세요'),
+];
+
+class _FeatureHighlights extends StatelessWidget {
+  const _FeatureHighlights();
+
+  @override
+  Widget build(BuildContext context) {
+    final labelColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75);
+    final descColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45);
+    return Column(
+      children: _kFeatures.map((f) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.mintGreen.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(f.icon, size: 20, color: AppColors.mintGreen),
+            ),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  f.label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: labelColor,
+                  ),
+                ),
+                Text(
+                  f.desc,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: descColor,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      )).toList(),
+    );
+  }
+}
 
 /// Login screen: shows brand animation for 1.5 s, then fades in
 /// Apple Sign In (iOS only) and Google Sign In buttons.
@@ -23,7 +79,6 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     with TickerProviderStateMixin {
   late AnimationController _waveController;
-  late AnimationController _rippleController;
   bool _showButtons = false;
   bool _isLoading = false;
   String? _errorMessage;
@@ -31,23 +86,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   @override
   void initState() {
     super.initState();
-    _rippleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2800),
-    );
 
+    // 흐르는 파형 — 6초 주기로 무한 반복
     _waveController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 4000),
-    )..forward();
+      duration: const Duration(seconds: 8),
+    )..repeat();
 
-    _waveController.addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
-        _rippleController.repeat();
-      }
-    });
-
-    // Fade-in buttons after 1.5 s
+    // 1.5초 후 로그인 버튼 페이드인
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) setState(() => _showButtons = true);
     });
@@ -56,7 +102,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   @override
   void dispose() {
     _waveController.dispose();
-    _rippleController.dispose();
     super.dispose();
   }
 
@@ -102,26 +147,37 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgGradient = isDark
+        ? const LinearGradient(
+            begin: Alignment.bottomLeft,
+            end: Alignment.topRight,
+            colors: [Color(0xFF0D1F1A), Color(0xFF0D1A2E)],
+          )
+        : AppColors.bgGradient;
+    final sloganColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
+    final emailBtnColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5);
+
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.bgGradient),
+        decoration: BoxDecoration(gradient: bgGradient),
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Column(
               children: [
                 const Spacer(flex: 2),
-                // Wave → Spot animation
+                // 흐르는 파형 애니메이션
                 SizedBox(
-                  height: 108,
+                  height: 180,
                   child: AnimatedBuilder(
-                    animation: Listenable.merge([_waveController, _rippleController]),
+                    animation: _waveController,
                     builder: (context, _) => CustomPaint(
-                      painter: WaveToSpotPainter(
-                        progress: _waveController.value,
-                        rippleValue: _rippleController.value,
+                      painter: FlowingWavePainter(
+                        animation: _waveController.value,
+                        isDark: isDark,
                       ),
-                      size: const Size(double.infinity, 108),
+                      size: const Size(double.infinity, 180),
                     ),
                   ),
                 ),
@@ -146,14 +202,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   AppStrings.appSlogan,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.textSecondary,
+                        color: sloganColor,
                         height: 1.5,
                       ),
                 )
                     .animate()
                     .fadeIn(delay: 700.ms, duration: 600.ms)
                     .slideY(begin: 0.2, end: 0),
-                const Spacer(flex: 3),
+                const Spacer(flex: 2),
+                // Feature highlights
+                const _FeatureHighlights()
+                    .animate()
+                    .fadeIn(delay: 1000.ms, duration: 700.ms)
+                    .slideY(begin: 0.15, end: 0),
+                const Spacer(flex: 1),
                 // Login buttons area
                 AnimatedOpacity(
                   opacity: _showButtons ? 1.0 : 0.0,
@@ -185,7 +247,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                             if (Platform.isIOS) ...[
                               SignInWithAppleButton(
                                 onPressed: _onApple,
-                                style: SignInWithAppleButtonStyle.black,
+                                style: isDark
+                                    ? SignInWithAppleButtonStyle.white
+                                    : SignInWithAppleButtonStyle.black,
                                 height: 50,
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -203,13 +267,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                                 ),
                                 label: const Text('Google로 계속하기'),
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF444444),
-                                  side: BorderSide(
-                                      color: Colors.grey.shade300),
+                                  foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
+                                  side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.25)),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  backgroundColor: Colors.white,
+                                  backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha: isDark ? 0.6 : 1.0),
                                   textStyle: const TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w500,
@@ -225,8 +288,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                               child: OutlinedButton(
                                 onPressed: () => context.push('/email-auth'),
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.textSecondary,
-                                  side: const BorderSide(color: AppColors.textSecondary),
+                                  foregroundColor: emailBtnColor,
+                                  side: BorderSide(color: emailBtnColor),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),

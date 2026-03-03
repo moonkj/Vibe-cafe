@@ -192,43 +192,98 @@ class _BottomNav extends StatelessWidget {
     final bottom = MediaQuery.of(context).padding.bottom;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
       ),
       padding: EdgeInsets.only(bottom: bottom),
       child: Row(
-        children: List.generate(tabs.length, (i) {
-          final tab = tabs[i];
-          final isActive = i == activeIndex;
-          return Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onTap(i),
-              child: SizedBox(
-                height: 60,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      isActive ? tab.activeIcon : tab.icon,
-                      size: 24,
-                      color: isActive ? AppColors.mintGreen : Colors.grey.shade400,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      tab.label,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                        color: isActive ? AppColors.mintGreen : Colors.grey.shade400,
-                      ),
-                    ),
-                  ],
+        children: List.generate(tabs.length, (i) => Expanded(
+          child: _AnimatedTabButton(
+            tab: tabs[i],
+            isActive: i == activeIndex,
+            onTap: () => onTap(i),
+          ),
+        )),
+      ),
+    );
+  }
+}
+
+class _AnimatedTabButton extends StatefulWidget {
+  final _TabItem tab;
+  final bool isActive;
+  final VoidCallback onTap;
+  const _AnimatedTabButton({required this.tab, required this.isActive, required this.onTap});
+
+  @override
+  State<_AnimatedTabButton> createState() => _AnimatedTabButtonState();
+}
+
+class _AnimatedTabButtonState extends State<_AnimatedTabButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+    _scale = Tween<double>(begin: 1.0, end: 0.82).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = widget.isActive;
+    final activeColor = AppColors.mintGreen;
+    final inactiveColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) { _ctrl.reverse(); widget.onTap(); },
+      onTapCancel: () => _ctrl.reverse(),
+      child: AnimatedBuilder(
+        animation: _scale,
+        builder: (context, child) => Transform.scale(scale: _scale.value, child: child),
+        child: SizedBox(
+          height: 60,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                child: Icon(
+                  key: ValueKey(isActive),
+                  isActive ? widget.tab.activeIcon : widget.tab.icon,
+                  size: 24,
+                  color: isActive ? activeColor : inactiveColor,
                 ),
               ),
-            ),
-          );
-        }),
+              const SizedBox(height: 4),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                  color: isActive ? activeColor : inactiveColor,
+                ),
+                child: Text(widget.tab.label),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

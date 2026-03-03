@@ -32,22 +32,22 @@ class _RankingScreenState extends ConsumerState<RankingScreen>
   Widget build(BuildContext context) {
     final top = MediaQuery.of(context).padding.top;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F6F1),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           // ── AppBar + TabBar ──
           Container(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             padding: EdgeInsets.only(top: top),
             child: Column(
               children: [
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   AppStrings.rankingTitle,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A1A),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -57,7 +57,7 @@ class _RankingScreenState extends ConsumerState<RankingScreen>
                   tabAlignment: TabAlignment.start,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   labelColor: AppColors.mintGreen,
-                  unselectedLabelColor: const Color(0xFFAAAAAA),
+                  unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                   indicatorColor: AppColors.mintGreen,
                   indicatorWeight: 2,
                   labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),

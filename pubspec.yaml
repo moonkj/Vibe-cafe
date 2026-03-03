@@ -34,6 +34,7 @@ dependencies:
   # UI & Animation
   flutter_animate: ^4.5.2
   lottie: ^3.3.1
+  google_fonts: ^6.2.1
 
 
   # Storage / Cache
@@ -84,4 +85,6 @@ flutter:
     - assets/icon/
     - assets/animations/
     - assets/map_style.json
+    - assets/map_style_dark.json
+    - assets/map_style_light.json
     - assets/seed/brand_cafes.json

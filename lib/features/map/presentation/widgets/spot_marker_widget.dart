@@ -199,6 +199,7 @@ class SpotMarkerWidget extends StatelessWidget {
 }
 
 /// Bottom sheet card shown when a spot marker is tapped.
+/// Glassmorphism style: BackdropFilter blur + semi-transparent surface.
 class SpotInfoCard extends ConsumerWidget {
   final SpotModel spot;
   final VoidCallback onReport;
@@ -211,135 +212,150 @@ class SpotInfoCard extends ConsumerWidget {
     final firstReporterAsync = ref.watch(
       _firstReporterProvider((spot.id, spot.googlePlaceId)),
     );
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadow,
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Spot name + dB badge
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  spot.name,
-                  style: Theme.of(context).textTheme.titleLarge,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasData = spot.reportCount > 0;
+    final dbColor = hasData ? DbClassifier.colorFromDb(spot.averageDb) : null;
+    final noDataColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.black.withValues(alpha: 0.55)
+                  : Colors.white.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.10)
+                    : Colors.white.withValues(alpha: 0.6),
+                width: 1.0,
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: spot.reportCount == 0
-                          ? const Color(0xFFEEEEEE)
-                          : DbClassifier.colorFromDb(spot.averageDb)
-                              .withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.12),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Spot name + dB badge
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        spot.name,
+                        style: Theme.of(context).textTheme.titleLarge,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    child: Text(
-                      spot.reportCount == 0
-                          ? '측정 없음'
-                          : '${spot.averageDb.toStringAsFixed(1)} dB',
-                      style: TextStyle(
-                        color: spot.reportCount == 0
-                            ? const Color(0xFF999999)
-                            : DbClassifier.colorFromDb(spot.averageDb),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: hasData
+                                ? dbColor!.withValues(alpha: 0.15)
+                                : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            hasData ? '${spot.averageDb.toStringAsFixed(1)} dB' : '측정 없음',
+                            style: TextStyle(
+                              color: hasData ? dbColor! : noDataColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        if (hasData)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, right: 2),
+                            child: firstReporterAsync.when(
+                              data: (name) => name == null
+                                  ? const SizedBox.shrink()
+                                  : Text(
+                                      '첫 바이브: $name',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.mintGreen,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                              loading: () => const SizedBox(
+                                width: 14, height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                  color: AppColors.mintGreen,
+                                ),
+                              ),
+                              error: (e, _) => const SizedBox.shrink(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Label + sticker
+                Row(
+                  children: [
+                    Text(
+                      DbClassifier.labelFromDb(spot.averageDb),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    if (spot.representativeSticker != null) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '${spot.representativeSticker!.emoji} ${spot.representativeSticker!.label}',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Social proof
+                _SocialProofRow(spot: spot),
+                const SizedBox(height: 16),
+                // Report button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: onReport,
+                    child: const Text('지금 소음 측정하기'),
+                  ),
+                ),
+                if (onDetail != null) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onDetail,
+                      icon: const Icon(Icons.info_outline, size: 18),
+                      label: const Text('자세히 보기'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.mintGreen,
+                        side: const BorderSide(color: AppColors.mintGreen),
                       ),
                     ),
                   ),
-                  if (spot.reportCount > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4, right: 2),
-                      child: firstReporterAsync.when(
-                        data: (name) => name == null
-                            ? const SizedBox.shrink()
-                            : Text(
-                                '첫 바이브: $name',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.mintGreen,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                        loading: () => const SizedBox(
-                          width: 14, height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            color: AppColors.mintGreen,
-                          ),
-                        ),
-                        error: (e, _) => const SizedBox.shrink(),
-                      ),
-                    ),
                 ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Label + sticker
-          Row(
-            children: [
-              Text(
-                DbClassifier.labelFromDb(spot.averageDb),
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              if (spot.representativeSticker != null) ...[
-                const SizedBox(width: 8),
-                Text(
-                  '${spot.representativeSticker!.emoji} ${spot.representativeSticker!.label}',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
               ],
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Social proof
-          _SocialProofRow(spot: spot),
-          const SizedBox(height: 16),
-          // Report button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: onReport,
-              child: const Text('지금 소음 측정하기'),
             ),
           ),
-          if (onDetail != null) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onDetail,
-                icon: const Icon(Icons.info_outline, size: 18),
-                label: const Text('자세히 보기'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.mintGreen,
-                  side: const BorderSide(color: AppColors.mintGreen),
-                ),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -374,22 +390,23 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final subColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.bgMap,
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: AppColors.textSecondary),
+          Icon(icon, size: 12, color: subColor),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: AppColors.textSecondary,
+              color: subColor,
               fontWeight: FontWeight.w500,
             ),
           ),

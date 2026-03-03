@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -123,7 +124,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     });
 
     return Scaffold(
-      backgroundColor: AppColors.bgWhite,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('바이브 체크'),
         leading: IconButton(
@@ -239,6 +240,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                     if (mounted) setState(() => _isCheckingLocation = false);
                   }
                 }
+                HapticFeedback.mediumImpact();
                 controller.startMeasurement();
               },
             ),
@@ -249,8 +251,10 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
             child: _StopButton(
-              onTap: () =>
-                  ref.read(reportControllerProvider.notifier).stopMeasurement(),
+              onTap: () {
+                HapticFeedback.heavyImpact();
+                ref.read(reportControllerProvider.notifier).stopMeasurement();
+              },
             ),
           ),
         ),
@@ -314,7 +318,7 @@ class _IdleView extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           '버튼을 눌러 바이브를 체크하세요',
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+          style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
         ),
         const SizedBox(height: 32),
         DbMeterWidget(currentDb: currentDb, isMeasuring: false),
@@ -347,7 +351,7 @@ class _MeasuringView extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           '분위기를 감지하고 있어요',
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+          style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
         ),
         const SizedBox(height: 32),
         DbMeterWidget(currentDb: currentDb, isMeasuring: true),
@@ -356,7 +360,7 @@ class _MeasuringView extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(30),
             boxShadow: [
               BoxShadow(
@@ -376,37 +380,51 @@ class _MeasuringView extends StatelessWidget {
                   color: Color(0xFFD32F2F),
                   shape: BoxShape.circle,
                 ),
-              ),
+              )
+                  .animate(onPlay: (c) => c.repeat())
+                  .fadeOut(duration: 800.ms)
+                  .then()
+                  .fadeIn(duration: 800.ms),
               const SizedBox(width: 8),
               Text(
                 '감지 중 ${_formatElapsed(elapsedSeconds)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: Color(0xFF444444),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ],
           ),
         ),
         const Spacer(),
+        _NoiseTipCard(currentDb: currentDb),
+        const SizedBox(height: 8),
       ],
     );
   }
 }
 
 // ─────────────────────────────────────────────
-// Measurement tip card
+// Idle tip card (static measurement tips)
 // ─────────────────────────────────────────────
 class _TipCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.mintGreen.withValues(alpha: 0.07),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.06)
+            : AppColors.mintGreen.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : AppColors.mintGreen.withValues(alpha: 0.15),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -437,17 +455,79 @@ class _TipCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('• ',
+                  Text('• ',
                       style: TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary)),
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6))),
                   Expanded(
                     child: Text(
                       tip,
-                      style: const TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// Measuring tip card (dB-level tips, glassmorphism)
+// ─────────────────────────────────────────────
+class _NoiseTipCard extends StatelessWidget {
+  final double currentDb;
+  const _NoiseTipCard({required this.currentDb});
+
+  static const _tips = [
+    (icon: Icons.spa_outlined,        text: '정말 조용해요! 집중하기 완벽한 환경이에요',   threshold: 40.0),
+    (icon: Icons.book_outlined,       text: '적당히 조용해요. 공부나 독서에 딱이에요',     threshold: 55.0),
+    (icon: Icons.coffee_outlined,     text: '활발한 대화 수준이에요. 캐주얼 작업에 적합해요', threshold: 70.0),
+    (icon: Icons.headphones_outlined, text: '좀 시끄러운 편이에요. 이어폰을 추천해요',     threshold: 85.0),
+    (icon: Icons.warning_amber_rounded, text: '매우 시끄러워요! 장시간 있으면 귀에 무리가 갈 수 있어요', threshold: double.infinity),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final tip = _tips.firstWhere((t) => currentDb < t.threshold, orElse: () => _tips.last);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.white.withValues(alpha: 0.75),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.10)
+              : Colors.white.withValues(alpha: 0.60),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(tip.icon, size: 20, color: AppColors.mintGreen),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              tip.text,
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
               ),
             ),
           ),
@@ -469,7 +549,7 @@ class _StartButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: 54,
       child: ElevatedButton(
         onPressed: isLoading ? null : onTap,
         style: ElevatedButton.styleFrom(
@@ -477,7 +557,7 @@ class _StartButton extends StatelessWidget {
           disabledBackgroundColor: AppColors.mintGreen.withValues(alpha: 0.6),
           foregroundColor: Colors.white,
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(27)),
           elevation: 0,
         ),
         child: isLoading
@@ -521,7 +601,7 @@ class _StopButton extends StatelessWidget {
           backgroundColor: const Color(0xFF8B3A2A),
           foregroundColor: Colors.white,
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(27)),
           elevation: 0,
         ),
       ),
@@ -600,7 +680,7 @@ class _StickerViewState extends State<_StickerView> {
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
             child: SizedBox(
               width: double.infinity,
-              height: 54,
+              height: 56,
               child: ElevatedButton(
                 onPressed: _canSubmit
                     ? () async {
@@ -635,7 +715,7 @@ class _StickerViewState extends State<_StickerView> {
                       AppColors.mintGreen.withValues(alpha: 0.35),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+                      borderRadius: BorderRadius.circular(28)),
                   elevation: 0,
                 ),
                 child: _submitting
@@ -679,7 +759,7 @@ class _MemoInput extends StatelessWidget {
           decoration: InputDecoration(
             labelText: '메모 (선택)',
             hintText: '예) 창가 자리 분위기 최고',
-            hintStyle: const TextStyle(color: Color(0xFFAAAAAA)),
+            hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)),
             errorText: errorText,
             errorStyle: const TextStyle(fontSize: 12),
             counterText: '',
@@ -689,15 +769,15 @@ class _MemoInput extends StatelessWidget {
               color: count >= 30 ? Colors.red : const Color(0xFF999999),
             ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: Theme.of(context).colorScheme.surface,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
+              borderSide: BorderSide(color: Theme.of(context).dividerColor),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: hasError ? Colors.red.shade300 : Colors.grey.shade300,
+                color: hasError ? Colors.red.shade300 : Theme.of(context).dividerColor,
               ),
             ),
             focusedBorder: OutlineInputBorder(

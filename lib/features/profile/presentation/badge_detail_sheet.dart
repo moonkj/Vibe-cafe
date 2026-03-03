@@ -31,9 +31,9 @@ class BadgeDetailSheet extends StatelessWidget {
       maxChildSize: 0.8,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             children: [
@@ -43,7 +43,7 @@ class BadgeDetailSheet extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: Theme.of(context).dividerColor,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -54,12 +54,12 @@ class BadgeDetailSheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Row(
                   children: [
-                    const Text(
+                    Text(
                       '뱃지 컬렉션',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A1A),
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     const Spacer(),
@@ -145,16 +145,18 @@ class _CategoryHeader extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           category.label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF1A1A1A),
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         const SizedBox(width: 8),
         Text(
           '$unlocked/${badges.length}',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+          style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
         ),
       ],
     );
@@ -175,12 +177,14 @@ class _BadgeCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: badge.unlocked ? Colors.white : const Color(0xFFF8F8F8),
+        color: badge.unlocked
+            ? Theme.of(context).colorScheme.surface
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: badge.unlocked
               ? AppColors.mintGreen.withValues(alpha: 0.25)
-              : Colors.grey.shade200,
+              : Theme.of(context).dividerColor,
         ),
         boxShadow: badge.unlocked
             ? [
@@ -201,7 +205,7 @@ class _BadgeCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: badge.unlocked
                   ? AppColors.mintGreen.withValues(alpha: 0.1)
-                  : Colors.grey.shade100,
+                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.07),
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
@@ -222,8 +226,8 @@ class _BadgeCard extends StatelessWidget {
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: badge.unlocked
-                        ? const Color(0xFF1A1A1A)
-                        : Colors.grey.shade400,
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                   ),
                 ),
                 const SizedBox(height: 3),
@@ -232,8 +236,8 @@ class _BadgeCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     color: badge.unlocked
-                        ? AppColors.textSecondary
-                        : Colors.grey.shade400,
+                        ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)
+                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.35),
                   ),
                 ),
               ],

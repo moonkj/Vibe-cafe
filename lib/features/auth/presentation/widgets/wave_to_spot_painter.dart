@@ -9,8 +9,9 @@ import '../../../../core/constants/app_colors.dart';
 class WaveToSpotPainter extends CustomPainter {
   final double progress;
   final double rippleValue;
+  final bool isDark;
 
-  WaveToSpotPainter({required this.progress, this.rippleValue = 0.0});
+  WaveToSpotPainter({required this.progress, this.rippleValue = 0.0, this.isDark = false});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -64,6 +65,12 @@ class WaveToSpotPainter extends CustomPainter {
     final totalLen = metric.length;
     final drawn = (totalLen * progress).clamp(0.0, totalLen);
 
+    // Theme-aware colors
+    // Dark bg: white trail end + white dot for contrast
+    // Light bg: skyBlue trail end + deeper teal dot for contrast
+    final trailEndColor = isDark ? Colors.white : AppColors.skyBlue;
+    final dotColor = isDark ? Colors.white : AppColors.mintGreen;
+
     // Gradient stroke for the trail
     final strokePaint = Paint()
       ..style = PaintingStyle.stroke
@@ -71,7 +78,7 @@ class WaveToSpotPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..shader = LinearGradient(
-        colors: [AppColors.mintGreen, Colors.white],
+        colors: [AppColors.mintGreen, trailEndColor],
         begin: Alignment.centerLeft,
         end: Alignment.centerRight,
       ).createShader(Rect.fromLTWH(waveStartX, 0, spotX - waveStartX, h));
@@ -85,7 +92,7 @@ class WaveToSpotPainter extends CustomPainter {
         canvas.drawCircle(
           tangent.position,
           3.5,
-          Paint()..color = Colors.white,
+          Paint()..color = dotColor,
         );
       }
     }
@@ -98,7 +105,7 @@ class WaveToSpotPainter extends CustomPainter {
         8.0 * t,
         Paint()
           ..style = PaintingStyle.fill
-          ..color = Colors.white.withValues(alpha: t),
+          ..color = dotColor.withValues(alpha: t),
       );
     }
 
@@ -126,5 +133,5 @@ class WaveToSpotPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(WaveToSpotPainter old) =>
-      old.progress != progress || old.rippleValue != rippleValue;
+      old.progress != progress || old.rippleValue != rippleValue || old.isDark != isDark;
 }

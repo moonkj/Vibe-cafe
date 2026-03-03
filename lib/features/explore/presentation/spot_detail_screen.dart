@@ -114,7 +114,7 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen> {
     final bottomPad = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F6F1),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           CustomScrollView(
@@ -329,7 +329,7 @@ class _SummaryBanner extends StatelessWidget {
           const Spacer(),
           Text(
             '$liveCount회 측정',
-            style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
+            style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
           ),
         ],
       ),
@@ -353,7 +353,7 @@ class _HourlyChartCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -365,12 +365,12 @@ class _HourlyChartCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '시간대별 소음 수준',
             style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF1A1A1A)),
+                color: Theme.of(context).colorScheme.onSurface),
           ),
           hourlyAsync.when(
             loading: () => const SizedBox(
@@ -378,15 +378,15 @@ class _HourlyChartCard extends StatelessWidget {
               child:
                   Center(child: CircularProgressIndicator(strokeWidth: 2)),
             ),
-            error: (e, _) => const SizedBox(
+            error: (e, _) => SizedBox(
               height: 80,
               child: Center(
                   child: Text('데이터를 불러올 수 없어요',
-                      style: TextStyle(color: Color(0xFF999999)))),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)))),
             ),
             data: (data) {
               if (data.length < 2) {
-                return const SizedBox(
+                return SizedBox(
                   height: 80,
                   child: Center(
                     child: Text(
@@ -394,7 +394,7 @@ class _HourlyChartCard extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF999999),
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                           height: 1.6),
                     ),
                   ),
@@ -420,21 +420,21 @@ class _HourlyChartCard extends StatelessWidget {
                       Text(
                         '오전 ${_fmtHour(startHour)} ~ '
                         '${_fmtHour(endHour, suffix: true)}',
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF999999)),
+                        style: TextStyle(
+                            fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                       ),
                       const Spacer(),
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF0F0F0),
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(rangeLabel,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 11,
-                                color: Color(0xFF666666),
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                                 fontWeight: FontWeight.w500)),
                       ),
                     ],
@@ -444,8 +444,12 @@ class _HourlyChartCard extends StatelessWidget {
                     height: 120,
                     child: CustomPaint(
                       size: const Size(double.infinity, 120),
-                      painter:
-                          _HourlyChartPainter(data: data, lineColor: dbColor),
+                      painter: _HourlyChartPainter(
+                        data: data,
+                        lineColor: dbColor,
+                        gridColor: Theme.of(context).dividerColor,
+                        dotBorderColor: Theme.of(context).colorScheme.surface,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -495,8 +499,8 @@ class _XAxisLabels extends StatelessWidget {
                   child: Text(
                     '${data[i].$1}시',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 10, color: Color(0xFF999999)),
+                    style: TextStyle(
+                        fontSize: 10, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                   ),
                 ),
               ),
@@ -510,17 +514,24 @@ class _XAxisLabels extends StatelessWidget {
 class _HourlyChartPainter extends CustomPainter {
   final List<(int, double)> data;
   final Color lineColor;
+  final Color gridColor;
+  final Color dotBorderColor;
   static const double _minDb = 20;
   static const double _maxDb = 90;
 
-  const _HourlyChartPainter({required this.data, required this.lineColor});
+  const _HourlyChartPainter({
+    required this.data,
+    required this.lineColor,
+    required this.gridColor,
+    required this.dotBorderColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (data.length < 2) return;
 
     final gridPaint = Paint()
-      ..color = Colors.grey.shade200
+      ..color = gridColor
       ..strokeWidth = 1;
     final linePaint = Paint()
       ..color = lineColor
@@ -534,7 +545,7 @@ class _HourlyChartPainter extends CustomPainter {
       ..color = lineColor
       ..style = PaintingStyle.fill;
     final dotBorderPaint = Paint()
-      ..color = Colors.white
+      ..color = dotBorderColor
       ..style = PaintingStyle.fill;
 
     // Grid lines at 30/60/90dB
@@ -590,7 +601,8 @@ class _HourlyChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_HourlyChartPainter old) =>
-      old.data != data || old.lineColor != lineColor;
+      old.data != data || old.lineColor != lineColor ||
+      old.gridColor != gridColor || old.dotBorderColor != dotBorderColor;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -630,7 +642,7 @@ class _VibeTagsCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -642,12 +654,12 @@ class _VibeTagsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '분위기 태그',
             style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF1A1A1A)),
+                color: Theme.of(context).colorScheme.onSurface),
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -659,15 +671,15 @@ class _VibeTagsCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF5F5F5),
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFE8E8E8)),
+                      border: Border.all(color: Theme.of(context).dividerColor),
                     ),
                     child: Text(
                       tag,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color: Color(0xFF444444),
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -715,7 +727,7 @@ class _RecentReportsCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -736,13 +748,13 @@ class _RecentReportsCard extends StatelessWidget {
             error: (e, _) => const SizedBox.shrink(),
             data: (reports) {
               if (reports.isEmpty) {
-                return const SizedBox(
+                return SizedBox(
                   height: 60,
                   child: Center(
                     child: Text(
                       '아직 측정 기록이 없어요',
                       style:
-                          TextStyle(fontSize: 13, color: Color(0xFF999999)),
+                          TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                     ),
                   ),
                 );
@@ -752,18 +764,18 @@ class _RecentReportsCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Text(
+                      Text(
                         '최근 측정',
                         style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF1A1A1A)),
+                            color: Theme.of(context).colorScheme.onSurface),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         '${reports.length}회 측정됨',
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF999999)),
+                        style: TextStyle(
+                            fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                       ),
                     ],
                   ),
@@ -812,10 +824,10 @@ class _RecentReportTile extends StatelessWidget {
             children: [
               Text(
                 nickname,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF222222),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               // Sticker badge OR custom #tag badge
@@ -866,8 +878,8 @@ class _RecentReportTile extends StatelessWidget {
               const Spacer(),
               Text(
                 _timeAgo(createdAt),
-                style: const TextStyle(
-                    fontSize: 12, color: Color(0xFF999999)),
+                style: TextStyle(
+                    fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
               ),
             ],
           ),
@@ -876,9 +888,9 @@ class _RecentReportTile extends StatelessWidget {
             const SizedBox(height: 5),
             Text(
               moodTag,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
-                color: Color(0xFF555555),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -906,7 +918,7 @@ class _StickyMeasureButton extends StatelessWidget {
       padding: EdgeInsets.only(
           left: 16, right: 16, top: 10, bottom: bottomPad + 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.06),
