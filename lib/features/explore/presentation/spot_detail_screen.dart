@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:math' show cos, sin, pi;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../bookmark/data/bookmark_repository.dart';
 import '../../../core/services/badge_service.dart';
+import '../../../core/services/places_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/db_classifier.dart';
 import '../../../features/map/domain/spot_model.dart';
@@ -36,6 +38,30 @@ final spotRecentReportsProvider = FutureProvider.autoDispose
   (ref, spotId) =>
       ref.read(reportRepositoryProvider).getSpotRecentReports(spotId, limit: 30),
 );
+
+/// Fetches a photo URL for the given spot.
+/// Uses cached photo_url from SpotModel if available; otherwise calls
+/// Google Places (New) API and stores the result in DB for future visits.
+final _spotPhotoProvider =
+    FutureProvider.autoDispose.family<String?, SpotModel>((ref, spot) async {
+  if (spot.photoUrl != null) return spot.photoUrl;
+  if (spot.googlePlaceId == null) return null;
+
+  final url = await ref
+      .read(placesServiceProvider)
+      .getPhotoUrl(spot.googlePlaceId!);
+
+  if (url != null) {
+    unawaited(
+      ref
+          .read(supabaseClientProvider)
+          .from('spots')
+          .update({'photo_url': url})
+          .eq('id', spot.id),
+    );
+  }
+  return url;
+});
 
 // ──────────────────────────────────────────────────────────────
 // Helpers
@@ -214,13 +240,43 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen> {
 // Hero Background
 // ──────────────────────────────────────────────────────────────
 
-class _HeroBackground extends StatelessWidget {
+class _HeroBackground extends ConsumerWidget {
   final SpotModel spot;
   final Color dbColor;
   const _HeroBackground({required this.spot, required this.dbColor});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final photoUrl =
+        ref.watch(_spotPhotoProvider(spot)).asData?.value;
+
+    if (photoUrl != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network(
+            photoUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stack) => _gradientBackground(),
+          ),
+          // Dark gradient overlay so AppBar title stays readable
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x4D000000), Color(0x99000000)],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return _gradientBackground();
+  }
+
+  Widget _gradientBackground() {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -241,8 +297,8 @@ class _HeroBackground extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.20),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Center(
-                child: const Icon(
+              child: const Center(
+                child: Icon(
                   Icons.local_cafe_rounded,
                   size: 36,
                   color: Colors.white,

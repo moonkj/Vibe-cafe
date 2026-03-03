@@ -313,6 +313,53 @@ class PlacesService {
       return [];
     }
   }
+
+  /// Returns a cacheable photo URL for [placeId] using Google Places (New) API.
+  /// Returns null if no photos are available, the key is missing, or on error.
+  Future<String?> getPhotoUrl(String placeId, {int maxWidth = 600}) async {
+    if (_mapsApiKey.isEmpty) return null;
+    try {
+      // Step 1: Fetch the first photo name via Place Details (New) API.
+      final detailsUri = Uri.https(
+        'places.googleapis.com',
+        '/v1/places/$placeId',
+        {'key': _mapsApiKey},
+      );
+      final detailsResp = await _client
+          .get(detailsUri, headers: {'X-Goog-FieldMask': 'photos'})
+          .timeout(const Duration(seconds: 8));
+      if (detailsResp.statusCode != 200) return null;
+
+      final detailsData =
+          json.decode(detailsResp.body) as Map<String, dynamic>;
+      final photos = detailsData['photos'] as List<dynamic>?;
+      if (photos == null || photos.isEmpty) return null;
+      final photoName =
+          (photos[0] as Map<String, dynamic>)['name'] as String?;
+      if (photoName == null) return null;
+
+      // Step 2: Resolve the serving URL via photo media endpoint.
+      // skipHttpRedirect=true → returns JSON { "photoUri": "https://..." }
+      final mediaUri = Uri.https(
+        'places.googleapis.com',
+        '/v1/$photoName/media',
+        {
+          'maxWidthPx': '$maxWidth',
+          'key': _mapsApiKey,
+          'skipHttpRedirect': 'true',
+        },
+      );
+      final mediaResp =
+          await _client.get(mediaUri).timeout(const Duration(seconds: 8));
+      if (mediaResp.statusCode != 200) return null;
+      final mediaData =
+          json.decode(mediaResp.body) as Map<String, dynamic>;
+      return mediaData['photoUri'] as String?;
+    } catch (e) {
+      debugPrint('[Places] getPhotoUrl error: $e');
+      return null;
+    }
+  }
 }
 
 final placesServiceProvider = Provider<PlacesService>((_) => PlacesService());

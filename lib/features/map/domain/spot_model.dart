@@ -118,6 +118,7 @@ class SpotModel {
   final double trustScore;
   final int recent24hCount;
   final DateTime? lastReportAt;
+  final String? photoUrl;
 
   const SpotModel({
     required this.id,
@@ -132,6 +133,7 @@ class SpotModel {
     required this.trustScore,
     required this.recent24hCount,
     this.lastReportAt,
+    this.photoUrl,
   });
 
   factory SpotModel.fromJson(Map<String, dynamic> json) {
@@ -152,6 +154,7 @@ class SpotModel {
       lastReportAt: json['last_report_at'] != null
           ? DateTime.parse(json['last_report_at'] as String)
           : null,
+      photoUrl: json['photo_url'] as String?,
     );
   }
 
