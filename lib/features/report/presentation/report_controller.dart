@@ -315,6 +315,14 @@ class ReportController extends Notifier<ReportState> {
         state.phase == ReportPhase.done) {
       return;
     }
+    // Guard against incomplete measurement (stableDb still at initial 0.0)
+    if (state.stableDb <= 0) {
+      state = state.copyWith(
+        phase: ReportPhase.error,
+        errorMessage: '측정이 완료되지 않았습니다. 다시 측정해 주세요.',
+      );
+      return;
+    }
     state = state.copyWith(
       selectedSticker: sticker,
       phase: ReportPhase.submitting,
@@ -361,7 +369,9 @@ class ReportController extends Notifier<ReportState> {
   }
 }
 
+/// autoDispose: /report 화면을 나가면 측정 상태가 초기화됨.
+/// 재진입 시 항상 새 측정으로 시작 — 이전 stableDb 잔류 방지.
 final reportControllerProvider =
-    NotifierProvider<ReportController, ReportState>(
+    NotifierProvider.autoDispose<ReportController, ReportState>(
   ReportController.new,
 );

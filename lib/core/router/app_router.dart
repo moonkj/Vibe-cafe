@@ -15,6 +15,7 @@ import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/explore/presentation/spot_detail_screen.dart';
 import '../../features/profile/presentation/my_map_screen.dart';
 import '../../features/map/domain/spot_model.dart';
+import '../../features/map/data/spots_repository.dart';
 import '../services/supabase_service.dart';
 import '../constants/app_colors.dart';
 
@@ -147,14 +148,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'spot',
             builder: (context, state) {
               final spot = state.extra;
-              if (spot is! SpotModel) {
-                // extra 없이 직접 진입 시 안전하게 처리
-                return Scaffold(
-                  appBar: AppBar(),
-                  body: const Center(child: Text('카페 정보를 불러올 수 없습니다.')),
-                );
-              }
-              return SpotDetailScreen(spot: spot);
+              if (spot is SpotModel) return SpotDetailScreen(spot: spot);
+              // extra 없음 (딥링크/공유/앱 재시작) → DB에서 단건 조회
+              return _SpotLoaderPage(spotId: state.pathParameters['id']!);
             },
           ),
         ],
@@ -390,6 +386,36 @@ class _AnimatedTabButtonState extends State<_AnimatedTabButton>
           ),
         ),
       ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// Spot Loader — 딥링크/공유 링크로 /spot/:id 진입 시 DB 조회
+// ──────────────────────────────────────────────────────────────
+class _SpotLoaderPage extends ConsumerWidget {
+  final String spotId;
+  const _SpotLoaderPage({required this.spotId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<SpotModel?>(
+      future: ref.read(spotsRepositoryProvider).fetchSpotById(spotId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final spot = snapshot.data;
+        if (spot == null) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: const Center(child: Text('카페 정보를 불러올 수 없습니다.')),
+          );
+        }
+        return SpotDetailScreen(spot: spot);
+      },
     );
   }
 }

@@ -189,6 +189,18 @@ class SpotsRepository {
         .toList();
   }
 
+  /// Fetch a single spot by ID using the get_spots_by_ids RPC (returns proper lat/lng).
+  /// Returns null if not found.
+  Future<SpotModel?> fetchSpotById(String id) async {
+    final data = await _client.rpc(
+      'get_spots_by_ids',
+      params: {'p_ids': [id]},
+    );
+    final list = data as List<dynamic>;
+    if (list.isEmpty) return null;
+    return SpotModel.fromJson(list.first as Map<String, dynamic>);
+  }
+
   /// Fetch ALL spots for admin full management. Optional [query] filters by name.
   Future<List<AdminSpot>> fetchAllSpots({String? query}) async {
     final data = await _client.rpc(

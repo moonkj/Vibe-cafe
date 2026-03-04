@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
@@ -84,7 +85,17 @@ class AuthRepository {
   }
 
   Future<void> signOut() async {
+    await _clearLocalPii();
     await _client.auth.signOut();
+  }
+
+  /// 로그아웃 시 SharedPreferences에 저장된 개인 식별 데이터 삭제.
+  /// 닉네임·대표뱃지·닉네임 프롬프트 플래그 등 PII 항목 정리.
+  static Future<void> _clearLocalPii() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_nickname');
+    await prefs.remove('nickname_prompt_shown');
+    await prefs.remove('rep_badge_id');
   }
 
   /// Deletes all user data then signs out.

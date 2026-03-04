@@ -48,32 +48,38 @@ class BookmarkRepository {
   }
 
   /// 내가 찜한 카페 목록 (최신 순)
+  /// get_spots_by_ids RPC 사용 — ST_Y/ST_X로 정확한 lat/lng 반환
+  /// (spots(*) 직접 join은 location 컬럼이 WKB hex로 반환돼 lat/lng = 0,0 버그 발생)
   Future<List<SpotModel>> getMyBookmarks() async {
-    final res = await _client
+    // 1단계: 내 북마크 spot_id 목록 조회 (최신순)
+    final bookmarkRes = await _client
         .from('user_bookmarks')
-        .select('spots(*)')
+        .select('spot_id')
         .eq('user_id', _userId)
         .order('created_at', ascending: false)
         .timeout(const Duration(seconds: 10));
 
-    final rows = res as List<dynamic>;
-    return rows
-        .map((e) {
-          final spotMap = e['spots'] as Map<String, dynamic>?;
-          if (spotMap == null) return null;
-          // spots 테이블은 lat/lng를 직접 저장하지 않고 location(geography)으로 저장하므로
-          // fromJson이 lat/lng 키를 요구 — 누락 시 0.0 fallback
-          final enriched = {
-            ...spotMap,
-            'lat': spotMap['lat'] ?? 0.0,
-            'lng': spotMap['lng'] ?? 0.0,
-            'trust_score': spotMap['trust_score'] ?? 0.0,
-            'recent_24h_count': spotMap['recent_24h_count'] ?? 0,
-          };
-          return SpotModel.fromJson(enriched);
-        })
-        .whereType<SpotModel>()
+    final ids = (bookmarkRes as List<dynamic>)
+        .map((e) => e['spot_id'] as String?)
+        .whereType<String>()
         .toList();
+
+    if (ids.isEmpty) return [];
+
+    // 2단계: get_spots_by_ids RPC로 정확한 위경도 포함 스팟 정보 조회
+    final spotRes = await _client.rpc(
+      'get_spots_by_ids',
+      params: {'p_ids': ids},
+    ).timeout(const Duration(seconds: 10));
+
+    final spotsById = <String, SpotModel>{};
+    for (final e in (spotRes as List<dynamic>)) {
+      final spot = SpotModel.fromJson(e as Map<String, dynamic>);
+      spotsById[spot.id] = spot;
+    }
+
+    // 북마크 순서 유지
+    return ids.map((id) => spotsById[id]).whereType<SpotModel>().toList();
   }
 }
 
