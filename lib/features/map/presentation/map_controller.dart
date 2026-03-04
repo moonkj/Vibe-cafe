@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -55,8 +54,6 @@ class MapController extends Notifier<MapState> {
   // Discovery cache: 30min TTL to limit Places API calls per area
   final _discoveryCache = BoundsCache(ttlSeconds: 1800);
   GoogleMapController? mapController;
-  // Last position where spots were loaded — skip reload if user hasn't moved >300m
-  LatLng? _lastLoadPos;
 
   @override
   MapState build() {
@@ -83,7 +80,9 @@ class MapController extends Notifier<MapState> {
     }
   }
 
-  /// Called on onCameraIdle — debounced 300ms, skips cached bounds.
+  /// Called on onCameraIdle — debounced 300ms, triggers discovery only.
+  /// Spots are always loaded from user GPS (not camera position), so we don't
+  /// reload on every camera pan — only on discovery, filter change, or report.
   void onCameraIdle(LatLngBounds bounds, double zoom) {
     if (zoom < MapConstants.zoomMinLoad) return;
 
@@ -93,30 +92,18 @@ class MapController extends Notifier<MapState> {
       () async {
         final center = _boundsCenter(bounds);
 
-        // Discover nearby cafes (background, throttled to 30min per area)
+        // Discover nearby cafes (background, throttled to 30min per area).
+        // After upsert, _discoverNearbyCafes will call _loadSpots automatically.
         if (!_discoveryCache.isCached(bounds)) {
           _discoveryCache.set(bounds);
           unawaited(_discoverNearbyCafes(lat: center.latitude, lng: center.longitude));
-        }
-
-        // Spots query: skip if user hasn't moved >300m AND spots are already
-        // loaded — prevents constant reloads and marker flicker on every pan.
-        // Always reload if spots are empty (first launch, error recovery, etc.)
-        final pos = state.userPosition;
-        if (pos != null) {
-          final cur = LatLng(pos.latitude, pos.longitude);
-          final moved = _lastLoadPos == null || _distMeters(_lastLoadPos!, cur) > 300;
-          if (moved || state.spots.isEmpty) {
-            await _loadSpots(lat: pos.latitude, lng: pos.longitude);
-          }
         }
       },
     );
   }
 
   /// Queries Google Places Nearby Search for ALL cafes within 3km, upserts new ones to DB.
-  /// 자동 _loadSpots 호출 없음 — 다음 onCameraIdle에서 자연스럽게 갱신.
-  /// (즉시 reload 시 탭 전환 복귀 중 마커가 갑작스럽게 나타나는 현상 방지)
+  /// Triggers _loadSpots after upsert so newly discovered cafes appear immediately.
   Future<void> _discoverNearbyCafes({
     required double lat,
     required double lng,
@@ -139,13 +126,18 @@ class MapController extends Notifier<MapState> {
       if (validPlaces.isEmpty) return;
 
       await ref.read(spotsRepositoryProvider).upsertBrandSpots(validPlaces);
+
+      // Reload spots so newly discovered cafes appear on the map immediately.
+      final pos = state.userPosition;
+      if (pos != null && !state.isLoading) {
+        await _loadSpots(lat: pos.latitude, lng: pos.longitude);
+      }
     } catch (e) {
       debugPrint('[MapController] cafe discovery error: $e');
     }
   }
 
   Future<void> _loadSpots({required double lat, required double lng}) async {
-    _lastLoadPos = LatLng(lat, lng);
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final spots = await ref.read(spotsRepositoryProvider).getSpotsNear(
@@ -196,16 +188,6 @@ class MapController extends Notifier<MapState> {
         (bounds.northeast.latitude + bounds.southwest.latitude) / 2,
         (bounds.northeast.longitude + bounds.southwest.longitude) / 2,
       );
-
-  /// Approximate flat-earth distance in meters between two LatLng points.
-  double _distMeters(LatLng a, LatLng b) {
-    const metersPerDegLat = 111320.0;
-    final metersPerDegLng =
-        111320.0 * math.cos(a.latitude * math.pi / 180);
-    final dy = (b.latitude - a.latitude) * metersPerDegLat;
-    final dx = (b.longitude - a.longitude) * metersPerDegLng;
-    return math.sqrt(dx * dx + dy * dy);
-  }
 
   // ── Admin dummy mode helpers ─────────────────────────────────────────
 

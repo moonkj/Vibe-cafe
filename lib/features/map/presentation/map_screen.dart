@@ -20,7 +20,7 @@ import 'widgets/spot_marker_widget.dart';
 
 // 탭 전환 시 비트맵 캐시가 유지되도록 모듈 레벨에 선언.
 // _MapScreenState가 재생성되어도 캐시가 초기화되지 않아 마커 재생성 불필요.
-const int _maxBitmapCacheSize = 150;
+const int _maxBitmapCacheSize = 500;
 final Map<String, BitmapDescriptor> _spotBitmapCache = {};
 
 class MapScreen extends ConsumerStatefulWidget {
@@ -411,12 +411,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             )),
       );
       if (_markerGeneration != gen || !mounted) return;
+      // Add all bitmaps first (no mid-batch eviction — prevents partial renders)
       for (var i = 0; i < toGenerate.length; i++) {
-        final key = '${toGenerate[i].id}_$isReduced';
-        if (_spotBitmapCache.length >= _maxBitmapCacheSize) {
-          _spotBitmapCache.remove(_spotBitmapCache.keys.first);
-        }
-        _spotBitmapCache[key] = bitmaps[i];
+        _spotBitmapCache['${toGenerate[i].id}_$isReduced'] = bitmaps[i];
+      }
+      // Evict stale entries only after full batch is cached
+      while (_spotBitmapCache.length > _maxBitmapCacheSize) {
+        _spotBitmapCache.remove(_spotBitmapCache.keys.first);
       }
     }
 

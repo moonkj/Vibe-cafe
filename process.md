@@ -2349,3 +2349,29 @@ flutter analyze → No issues found ✅
 이번달 첫 바이브 닉네임 박스 + 말일 23:59 초기화 ✅
 닉네임 수정 서버 저장 보장 ✅
 ```
+
+---
+
+### Phase 36: 지도 카페 표시 버그 수정
+
+#### 1. `_maxBitmapCacheSize` 150 → 500 (zoom in 시 마커 사라짐)
+- **원인**: LIMIT 200 제거(migration 036) 후 반환 스팟 수 증가 → 배치 추가 중 캐시 eviction 발생 → `bitmap == null` skip으로 마커 누락
+- **수정**: 캐시 크기 500으로 증가; 배치 전체 추가 완료 후 eviction 실행 (mid-batch eviction 제거)
+- **파일**: `lib/features/map/presentation/map_screen.dart`
+
+#### 2. 내 주변 카페 미표시 수정 (`onCameraIdle` / `_discoverNearbyCafes`)
+- **원인**: `onCameraIdle`의 300m 체크 로직 오류 — `_lastLoadPos`(사용자 GPS)와 `cur`(사용자 GPS)가 항상 동일 → `moved = false` → spots 재로드 영구 skip; `_discoverNearbyCafes`가 Places API로 새 카페를 upsert해도 `_loadSpots` 미호출
+- **현상**: 실제 위치 주변에 카페 없음, 멀리(복대동 등 이전 테스트 지역)만 표시
+- **수정**:
+  - `onCameraIdle`에서 `_loadSpots` 호출 완전 제거 (spots는 항상 사용자 GPS 기준 3km — 카메라 이동과 무관)
+  - `_discoverNearbyCafes` upsert 성공 후 `_loadSpots` 즉시 호출 → 새로 발견된 카페 바로 지도 반영
+  - `_lastLoadPos` / `_distMeters` / `dart:math` import 제거
+- **파일**: `lib/features/map/presentation/map_controller.dart`
+
+#### 최종 상태
+```
+flutter analyze → No issues found ✅
+zoom in 시 마커 정상 표시 (_maxBitmapCacheSize 500) ✅
+내 주변 카페 즉시 표시 (Places API 발견 후 자동 reload) ✅
+카메라 이동 시 마커 깜빡임 없음 (onCameraIdle에서 _loadSpots 제거) ✅
+```
