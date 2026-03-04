@@ -360,48 +360,82 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     );
   }
 
-  Future<void> _saveNickname(String newNick) async {
-    final trimmed = newNick.trim();
-    if (trimmed.length < 2) return;
-    if (!RegExp(r'^[가-힣a-zA-Z0-9]+$').hasMatch(trimmed)) return;
-    ref.read(nicknameProvider.notifier).set(trimmed);
-    ref.read(profileRepositoryProvider).upsertNickname(trimmed).catchError((_) {});
-  }
-
   void _editNickname(BuildContext context, String? current) {
     final controller = TextEditingController(text: current ?? '');
     showDialog(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('닉네임 설정'),
-        content: TextField(
-          controller: controller,
-          maxLength: 10,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '2~10자 (한글, 영문, 숫자)',
-            counterText: '',
-          ),
-          onSubmitted: (_) {
-            final nick = controller.text.trim();
-            Navigator.pop(dialogCtx);
-            if (nick.isNotEmpty) _saveNickname(nick);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () {
-              final nick = controller.text.trim();
-              Navigator.pop(dialogCtx);
-              if (nick.isNotEmpty) _saveNickname(nick);
-            },
-            child: const Text('저장', style: TextStyle(color: AppColors.mintGreen)),
-          ),
-        ],
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          var isSaving = false;
+
+          Future<void> doSave() async {
+            final trimmed = controller.text.trim();
+            if (trimmed.length < 2) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('2자 이상 입력해 주세요')),
+              );
+              return;
+            }
+            if (!RegExp(r'^[가-힣a-zA-Z0-9]+$').hasMatch(trimmed)) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('한글, 영문, 숫자만 사용 가능해요')),
+              );
+              return;
+            }
+            setDialogState(() => isSaving = true);
+            try {
+              // 서버 먼저 저장 (실패 시 다이얼로그 유지)
+              await ref.read(profileRepositoryProvider).upsertNickname(trimmed);
+              // 성공 후 로컬 반영
+              await ref.read(nicknameProvider.notifier).set(trimmed);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('닉네임이 저장되었습니다')),
+                );
+              }
+            } catch (e) {
+              setDialogState(() => isSaving = false);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('저장 실패. 네트워크를 확인해 주세요.')),
+                );
+              }
+            }
+          }
+
+          return AlertDialog(
+            title: const Text('닉네임 설정'),
+            content: TextField(
+              controller: controller,
+              maxLength: 10,
+              autofocus: true,
+              enabled: !isSaving,
+              decoration: const InputDecoration(
+                hintText: '2~10자 (한글, 영문, 숫자)',
+                counterText: '',
+              ),
+              onSubmitted: (_) => doSave(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                child: const Text('취소'),
+              ),
+              TextButton(
+                onPressed: isSaving ? null : doSave,
+                child: isSaving
+                    ? const SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.mintGreen),
+                      )
+                    : const Text('저장',
+                        style: TextStyle(color: AppColors.mintGreen)),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
