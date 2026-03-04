@@ -29,12 +29,14 @@ class UserRankItem {
   final String nickname;
   final int totalReports;
   final int totalCafes;
+  final int totalXp;
 
   const UserRankItem({
     required this.userId,
     required this.nickname,
     required this.totalReports,
     required this.totalCafes,
+    required this.totalXp,
   });
 }
 
@@ -96,7 +98,7 @@ class RankingRepository {
     try {
       final statsRes = await _client
           .from('user_stats')
-          .select('user_id, total_reports, total_cafes')
+          .select('user_id, total_reports, total_cafes, total_xp')
           .gt('total_reports', 0)
           .order('total_reports', ascending: false)
           .limit(20)
@@ -133,6 +135,7 @@ class RankingRepository {
           nickname: nicknames[uid] ?? '카페바이브 유저',
           totalReports: (m['total_reports'] as num).toInt(),
           totalCafes: (m['total_cafes'] as num).toInt(),
+          totalXp: (m['total_xp'] as num?)?.toInt() ?? 0,
         );
       }).toList();
     } catch (_) {

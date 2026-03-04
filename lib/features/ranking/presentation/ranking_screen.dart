@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/utils/level_service.dart' show LevelService;
 import '../../../features/map/domain/spot_model.dart';
 import '../data/ranking_repository.dart';
 
@@ -181,24 +182,6 @@ class _QuietCafeTab extends ConsumerWidget {
 class _MeasurerTab extends ConsumerWidget {
   const _MeasurerTab();
 
-  static const _levelIcons = ['☕', '🎧', '🏆', '⭐', '👑'];
-
-  String _levelIcon(int reports) {
-    if (reports >= 50) return _levelIcons[4];
-    if (reports >= 20) return _levelIcons[3];
-    if (reports >= 10) return _levelIcons[2];
-    if (reports >= 5) return _levelIcons[1];
-    return _levelIcons[0];
-  }
-
-  int _levelNum(int reports) {
-    if (reports >= 50) return 5;
-    if (reports >= 20) return 4;
-    if (reports >= 10) return 3;
-    if (reports >= 5) return 2;
-    return 1;
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -215,8 +198,9 @@ class _MeasurerTab extends ConsumerWidget {
               itemCount: list.length,
               itemBuilder: (ctx, i) {
                 final item = list[i];
-                final lv = _levelNum(item.totalReports);
-                final lvName = AppStrings.levelNames[lv - 1];
+                final userLevel = LevelService.calcLevel(item.totalXp);
+                final lv = userLevel.level;
+                final lvName = AppStrings.levelNames[(lv - 1).clamp(0, AppStrings.levelNames.length - 1)];
                 return _GlassRankCard(
                   rank: i + 1,
                   trailing: Column(
@@ -253,7 +237,7 @@ class _MeasurerTab extends ConsumerWidget {
                         ),
                         child: Center(
                           child: Text(
-                            _levelIcon(item.totalReports),
+                            userLevel.icon,
                             style: const TextStyle(fontSize: 22),
                           ),
                         ),
