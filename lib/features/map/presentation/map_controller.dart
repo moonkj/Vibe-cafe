@@ -105,8 +105,9 @@ class MapController extends Notifier<MapState> {
     );
   }
 
-  /// Queries Google Places Nearby Search for ALL cafes within 3km, upserts new ones to DB,
-  /// then refreshes the map if new spots were added.
+  /// Queries Google Places Nearby Search for ALL cafes within 3km, upserts new ones to DB.
+  /// 자동 _loadSpots 호출 없음 — 다음 onCameraIdle에서 자연스럽게 갱신.
+  /// (즉시 reload 시 탭 전환 복귀 중 마커가 갑작스럽게 나타나는 현상 방지)
   Future<void> _discoverNearbyCafes({
     required double lat,
     required double lng,
@@ -117,18 +118,18 @@ class MapController extends Notifier<MapState> {
           .nearbyCafes(lat: lat, lng: lng);
       if (places.isEmpty) return;
 
-      final created = await ref
-          .read(spotsRepositoryProvider)
-          .upsertBrandSpots(places);
+      // 좌표 범위 검증: Google Places가 반경 밖 좌표로 장소를 반환하는 경우 제외.
+      // 잘못된 좌표의 스팟이 사용자 위치 위에 겹쳐 보이는 현상을 방지.
+      final validPlaces = places.where((p) {
+        final dist = LocationService.distanceMeters(
+          userLat: lat, userLng: lng,
+          targetLat: p.lat, targetLng: p.lng,
+        );
+        return dist <= MapConstants.defaultRadiusMeters;
+      }).toList();
+      if (validPlaces.isEmpty) return;
 
-      if (created > 0) {
-        // New cafes added — reload from user position (not camera center)
-        // to avoid overwriting user-position spots with camera-center spots.
-        final pos = state.userPosition;
-        if (pos != null) {
-          await _loadSpots(lat: pos.latitude, lng: pos.longitude);
-        }
-      }
+      await ref.read(spotsRepositoryProvider).upsertBrandSpots(validPlaces);
     } catch (e) {
       debugPrint('[MapController] cafe discovery error: $e');
     }
