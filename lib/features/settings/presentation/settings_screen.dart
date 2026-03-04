@@ -338,8 +338,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   onTap: () => _confirmLogout(context),
                 ),
                 _DangerTile(
-                  icon: Icons.restore_rounded,
-                  title: '앱 데이터 초기화',
+                  icon: Icons.delete_forever_rounded,
+                  title: '계정 삭제',
                   onTap: () => _confirmDataReset(context),
                 ),
                 const SizedBox(height: 32),
@@ -406,28 +406,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     }
   }
 
-  void _showTermsNotice(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('이용약관'),
-        content: const SingleChildScrollView(
-          child: Text(
-            '1. 본 앱은 카페의 소음 정보를 공유하는 커뮤니티 서비스입니다\n'
-            '2. 측정 데이터는 공익 목적으로 공개될 수 있습니다\n'
-            '3. 허위 데이터 등록 등 서비스 어뷰징 행위는 제재될 수 있습니다\n'
-            '4. 서비스는 사전 예고 없이 변경 또는 종료될 수 있습니다',
-            style: TextStyle(fontSize: 14, height: 1.7),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('확인', style: TextStyle(color: AppColors.mintGreen)),
-          ),
-        ],
-      ),
+  Future<void> _showTermsNotice(BuildContext context) async {
+    final uri = Uri.parse(
+      'https://moonkj.github.io/Vibe-cafe/docs/terms-of-service.html',
     );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   /// Builds the dummy mode switch tile with loading/error states.
@@ -676,9 +661,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('앱 데이터 초기화'),
+        title: const Text('계정 삭제'),
         content: const Text(
-          '모든 측정 기록, 뱃지, 닉네임이 삭제되고\n새로운 사용자로 다시 시작됩니다.\n\n이 작업은 되돌릴 수 없습니다.',
+          '계정을 삭제하면 모든 측정 기록, 뱃지, 닉네임이 삭제되고\n새로운 사용자로 다시 시작됩니다.\n\n이 작업은 되돌릴 수 없습니다.',
         ),
         actions: [
           TextButton(
@@ -697,7 +682,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               await ref.read(authRepositoryProvider).deleteAccount();
               if (context.mounted) context.go('/onboarding');
             },
-            child: const Text('초기화', style: TextStyle(color: AppColors.dbVeryLoud)),
+            child: const Text('삭제', style: TextStyle(color: AppColors.dbVeryLoud)),
           ),
         ],
       ),

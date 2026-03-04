@@ -8,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../core/constants/admin_config.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/map_constants.dart';
+import '../../../core/services/att_service.dart';
 import '../../../core/services/places_service.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../../core/utils/db_classifier.dart';
@@ -51,6 +52,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   );
 
   bool get _hasBottomCard => _selectedSpot != null || _searchPrediction != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // ATT 권한 요청 — iOS 전용, notDetermined 상태일 때만 팝업 표시
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AttService.requestIfNeeded();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -323,6 +333,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
             ),
 
+          // Error banner — 데이터 로드 실패 시 상단에 표시
+          if (mapState.error != null)
+            _ErrorBanner(
+              onRetry: () =>
+                  ref.read(mapControllerProvider.notifier).reloadSpots(),
+            ),
+
         ],
       ),
     );
@@ -535,6 +552,67 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         '&lng=${latLng.lng}',
       );
     }
+  }
+}
+
+/// 지도 데이터 로드 실패 시 상단에 표시되는 에러 배너.
+class _ErrorBanner extends StatelessWidget {
+  final VoidCallback onRetry;
+  const _ErrorBanner({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.red.shade700.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.red.shade900.withValues(alpha: 0.25),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '데이터를 불러올 수 없어요',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.95),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: onRetry,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  '다시 시도',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

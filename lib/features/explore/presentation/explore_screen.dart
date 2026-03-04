@@ -23,7 +23,7 @@ final _nearbySpotsProvider = FutureProvider.autoDispose<List<SpotModel>>((ref) a
 // ──────────────────────────────────────────────────────────────
 // Sort mode
 // ──────────────────────────────────────────────────────────────
-enum _SortMode { nearest, popular }
+enum _SortMode { nearest, popular, recent }
 
 class ExploreScreen extends ConsumerStatefulWidget {
   const ExploreScreen({super.key});
@@ -58,6 +58,10 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
     if (_sortMode == _SortMode.popular) {
       filtered.sort((a, b) => b.reportCount.compareTo(a.reportCount));
+    } else if (_sortMode == _SortMode.recent) {
+      filtered.sort((a, b) =>
+          (b.lastReportAt ?? DateTime(2000))
+              .compareTo(a.lastReportAt ?? DateTime(2000)));
     }
     // nearest: already sorted by distance from RPC
     return filtered;
@@ -128,7 +132,12 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 onSortChanged: (s) => setState(() => _sortMode = s),
               ),
               if (filtered.isEmpty)
-                const SliverFillRemaining(child: _EmptyView())
+                SliverFillRemaining(
+                  child: _EmptyView(
+                    hasFilter: _activeFilter != null,
+                    onClearFilter: () => setState(() => _activeFilter = null),
+                  ),
+                )
               else
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
@@ -257,6 +266,12 @@ class _FilterRow extends StatelessWidget {
               onTap: () => onSortChanged(_SortMode.popular),
               isSort: true,
             ),
+            _Chip(
+              label: AppStrings.exploreSortRecent,
+              isActive: sortMode == _SortMode.recent,
+              onTap: () => onSortChanged(_SortMode.recent),
+              isSort: true,
+            ),
           ],
         ),
       ),
@@ -346,6 +361,14 @@ class _CafeListTileState extends State<_CafeListTile>
 
   SpotModel get spot => widget.spot;
   Position? get userPos => widget.userPos;
+
+  String _relativeTime(DateTime? dt) {
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}분 전';
+    if (diff.inHours < 24) return '${diff.inHours}시간 전';
+    return '${diff.inDays}일 전';
+  }
 
   String? _distanceLabel() {
     if (userPos == null) return null;
@@ -470,6 +493,20 @@ class _CafeListTileState extends State<_CafeListTile>
                                     style: TextStyle(fontSize: 11, color: subTextColor),
                                   ),
                                 ],
+                                () {
+                                  final t = _relativeTime(spot.lastReportAt);
+                                  return t.isNotEmpty
+                                      ? Row(children: [
+                                          const SizedBox(width: 8),
+                                          Icon(Icons.access_time_rounded,
+                                              size: 11, color: subTextColor),
+                                          const SizedBox(width: 2),
+                                          Text(t,
+                                              style: TextStyle(
+                                                  fontSize: 11, color: subTextColor)),
+                                        ])
+                                      : const SizedBox.shrink();
+                                }(),
                               ],
                             ),
                           ],
@@ -521,7 +558,10 @@ class _CafeListTileState extends State<_CafeListTile>
 // Empty / Error states
 // ──────────────────────────────────────────────────────────────
 class _EmptyView extends StatelessWidget {
-  const _EmptyView();
+  final bool hasFilter;
+  final VoidCallback? onClearFilter;
+
+  const _EmptyView({this.hasFilter = false, this.onClearFilter});
 
   @override
   Widget build(BuildContext context) {
@@ -533,14 +573,23 @@ class _EmptyView extends StatelessWidget {
           Icon(Icons.coffee_outlined, size: 64, color: subColor),
           const SizedBox(height: 16),
           Text(
-            AppStrings.exploreEmpty,
+            hasFilter ? '해당 필터의 카페가 없어요' : AppStrings.exploreEmpty,
             style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
           ),
           const SizedBox(height: 8),
-          Text(
-            '첫 번째 카페를 등록해 보세요!',
-            style: TextStyle(fontSize: 13, color: subColor),
-          ),
+          if (hasFilter && onClearFilter != null)
+            TextButton(
+              onPressed: onClearFilter,
+              child: const Text(
+                '필터 초기화',
+                style: TextStyle(color: AppColors.mintGreen),
+              ),
+            )
+          else
+            Text(
+              '첫 번째 카페를 등록해 보세요!',
+              style: TextStyle(fontSize: 13, color: subColor),
+            ),
         ],
       ),
     );

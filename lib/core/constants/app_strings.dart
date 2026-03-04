@@ -31,6 +31,7 @@ class AppStrings {
   static const String exploreFilterAll = '전체';
   static const String exploreSortNearest = '가까운순';
   static const String exploreSortPopular = '인기순';
+  static const String exploreSortRecent = '최근 측정순';
   static const String exploreAddCafe = '카페 등록';
   static const String exploreEmpty = '주변 3km 내 카페가 없어요';
   static String exploreCafeCount(int count) => '$count개의 카페';

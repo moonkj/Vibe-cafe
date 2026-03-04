@@ -55,6 +55,9 @@ dependencies:
   # In-App Review
   in_app_review: ^2.0.9
 
+  # App Tracking Transparency (iOS ATT)
+  app_tracking_transparency: ^2.0.6+1
+
   # Social Login
   sign_in_with_apple: ^6.1.0
   crypto: ^3.0.6
