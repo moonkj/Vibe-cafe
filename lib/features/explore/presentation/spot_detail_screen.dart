@@ -107,7 +107,10 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final spot = widget.spot;
-    final liveStats = ref.watch(spotLiveStatsProvider(spot.id)).asData?.value;
+    final liveStatsAsync = ref.watch(spotLiveStatsProvider(spot.id));
+    // .value: 재조회 중(loading)에도 이전 데이터를 유지 → "측정없음" 깜박임 방지
+    final liveStats = liveStatsAsync.value;
+    final liveStatsLoading = liveStatsAsync.isLoading && liveStats == null;
     final liveCount = liveStats?.count ?? spot.reportCount;
     final liveAvgDb = (liveStats != null && liveStats.count > 0)
         ? liveStats.avgDb
@@ -177,6 +180,7 @@ class _SpotDetailScreenState extends ConsumerState<SpotDetailScreen> {
                   dbColor: dbColor,
                   liveCount: liveCount,
                   liveAvgDb: liveAvgDb,
+                  liveStatsLoading: liveStatsLoading,
                 ),
               ),
 
@@ -343,11 +347,13 @@ class _SummaryBanner extends StatelessWidget {
   final Color dbColor;
   final int liveCount;
   final double liveAvgDb;
+  final bool liveStatsLoading;
   const _SummaryBanner({
     required this.spot,
     required this.dbColor,
     required this.liveCount,
     required this.liveAvgDb,
+    required this.liveStatsLoading,
   });
 
   @override
@@ -360,6 +366,17 @@ class _SummaryBanner extends StatelessWidget {
         children: [
           Icon(Icons.graphic_eq, size: 16, color: dbColor),
           const SizedBox(width: 6),
+          // 초회 로딩 중: 스피너 표시 → "측정없음" 오인 방지
+          if (liveStatsLoading)
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: dbColor,
+              ),
+            )
+          else
           Text(
             liveCount == 0 ? '측정 없음' : '평균 ${liveAvgDb.toStringAsFixed(1)}dB',
             style: TextStyle(
