@@ -28,6 +28,8 @@ import '../../../core/services/calibration_service.dart';
 import '../../../core/services/review_service.dart';
 import '../../../core/services/moderation_service.dart';
 import '../../../core/services/suggestion_limit_service.dart';
+import '../../explore/presentation/explore_screen.dart' show nearbySpotsProvider;
+import '../../map/presentation/map_controller.dart' show mapControllerProvider;
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -1561,16 +1563,16 @@ class _AdminRequestsSheetState extends State<_AdminRequestsSheet> {
 }
 
 // ── 관리자: 등록된 카페 관리 바텀시트 ─────────────────────────────
-class _AdminSpotsSheet extends StatefulWidget {
+class _AdminSpotsSheet extends ConsumerStatefulWidget {
   final SpotsRepository spotsRepo;
   final PlacesService placesService;
   const _AdminSpotsSheet({required this.spotsRepo, required this.placesService});
 
   @override
-  State<_AdminSpotsSheet> createState() => _AdminSpotsSheetState();
+  ConsumerState<_AdminSpotsSheet> createState() => _AdminSpotsSheetState();
 }
 
-class _AdminSpotsSheetState extends State<_AdminSpotsSheet> {
+class _AdminSpotsSheetState extends ConsumerState<_AdminSpotsSheet> {
   late Future<List<AdminSpot>> _future;
   final _searchCtrl = TextEditingController();
 
@@ -1791,6 +1793,9 @@ class _AdminSpotsSheetState extends State<_AdminSpotsSheet> {
     if (doubleConfirmed != true) return;
     try {
       await widget.spotsRepo.deleteSpot(spot.id);
+      // 탐색 탭 + 지도 즉시 갱신
+      ref.invalidate(nearbySpotsProvider);
+      ref.read(mapControllerProvider.notifier).reloadSpots();
       _refresh();
     } catch (e) {
       if (context.mounted) {

@@ -74,6 +74,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _loadMapStyle(brightness);
     }
 
+    // spots 갱신 시 선택된 카드도 최신 데이터로 업데이트 (측정 제출 후 즉시 반영)
+    ref.listen(mapControllerProvider.select((s) => s.spots), (prev, spots) {
+      final sel = _selectedSpot;
+      if (sel == null) return;
+      final updated = spots.where((s) => s.id == sel.id).firstOrNull;
+      if (updated != null && mounted) setState(() => _selectedSpot = updated);
+    });
+
     // 탐색 탭에서 "지도에서 보기" 요청 처리
     ref.listen(mapFocusProvider, (prev, focus) {
       if (focus == null) return;

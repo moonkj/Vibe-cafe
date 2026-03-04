@@ -12,7 +12,7 @@ import '../../../features/map/domain/spot_model.dart';
 // Provider: 내 주변 3km 카페 목록 (자동 탐색)
 // keepAlive — 탭 전환 시 데이터 유지, RefreshIndicator로만 갱신
 // ──────────────────────────────────────────────────────────────
-final _nearbySpotsProvider = FutureProvider<List<SpotModel>>((ref) async {
+final nearbySpotsProvider = FutureProvider<List<SpotModel>>((ref) async {
   final position = await ref.watch(currentPositionProvider.future);
   return ref.read(spotsRepositoryProvider).getSpotsNear(
     lat: position.latitude,
@@ -61,7 +61,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final spotsAsync = ref.watch(_nearbySpotsProvider);
+    final spotsAsync = ref.watch(nearbySpotsProvider);
     final userPos = ref.watch(currentPositionProvider).asData?.value;
 
     return Scaffold(
@@ -70,16 +70,16 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.mintGreen),
         ),
-        error: (e, _) => _ErrorView(onRetry: () => ref.invalidate(_nearbySpotsProvider)),
+        error: (e, _) => _ErrorView(onRetry: () => ref.invalidate(nearbySpotsProvider)),
         data: (spots) {
           final filtered = _applyFilter(spots);
           return RefreshIndicator(
             color: AppColors.mintGreen,
             onRefresh: () async {
               ref.invalidate(currentPositionProvider);
-              ref.invalidate(_nearbySpotsProvider);
+              ref.invalidate(nearbySpotsProvider);
               await ref
-                  .read(_nearbySpotsProvider.future)
+                  .read(nearbySpotsProvider.future)
                   .catchError((_) => <SpotModel>[]);
             },
             child: CustomScrollView(

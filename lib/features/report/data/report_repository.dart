@@ -28,38 +28,31 @@ class ReportRepository {
       throw Exception('유효하지 않은 dB 값입니다.');
     }
 
-    // XP check 1: 1일 1회 제한 — has user already submitted a report today?
+    // Pre-checks: 3개 쿼리를 2개 병렬 쿼리로 합쳐 지연 최소화
     final todayStart = DateTime.now().toUtc().copyWith(
       hour: 0, minute: 0, second: 0, millisecond: 0, microsecond: 0,
     ).toIso8601String();
-    final todayResp = await _client
-        .from('reports')
-        .select('id')
-        .eq('user_id', userId)
-        .gte('created_at', todayStart)
-        .limit(1);
-    final hasReportedToday = (todayResp as List).isNotEmpty;
 
-    // Block: 같은 카페를 오늘 이미 측정했는지 확인
-    final todaySpotResp = await _client
-        .from('reports')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('spot_id', spotId)
-        .gte('created_at', todayStart)
-        .limit(1);
-    if ((todaySpotResp as List).isNotEmpty) {
-      throw Exception('오늘 이미 이 카페를 측정했어요.\n내일 다시 측정할 수 있어요.');
+    final results = await Future.wait([
+      // A: 오늘 이 유저의 모든 리포트 (1일 1회 XP 체크용)
+      _client.from('reports').select('id').eq('user_id', userId)
+          .gte('created_at', todayStart).limit(1),
+      // B: 이 카페의 이 유저 모든 리포트 (신규 카페 XP + 오늘 중복 체크용)
+      _client.from('reports').select('id, created_at').eq('user_id', userId)
+          .eq('spot_id', spotId).order('created_at', ascending: false).limit(1),
+    ]);
+
+    final hasReportedToday = (results[0] as List).isNotEmpty;
+    final spotReports = results[1] as List;
+    final isNewCafe = spotReports.isEmpty;
+    if (spotReports.isNotEmpty) {
+      final lastAt = DateTime.tryParse(
+        (spotReports.first as Map<String, dynamic>)['created_at'] as String,
+      )?.toUtc();
+      if (lastAt != null && lastAt.isAfter(DateTime.parse(todayStart))) {
+        throw Exception('오늘 이미 이 카페를 측정했어요.\n내일 다시 측정할 수 있어요.');
+      }
     }
-
-    // XP check 2: first time at this cafe?
-    final prevResp = await _client
-        .from('reports')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('spot_id', spotId)
-        .limit(1);
-    final isNewCafe = (prevResp as List).isEmpty;
 
     // Insert report (DB: only the number, no audio)
     await _client.from('reports').insert({
@@ -79,20 +72,14 @@ class ReportRepository {
       'p_user_id': userId,
     }).timeout(const Duration(seconds: 10));
 
-    // Update aggregated user stats (total_reports, total_cafes)
-    try {
-      await _client.rpc('update_user_stats', params: {'p_user_id': userId});
-    } catch (_) {}
-
-    // Award XP
+    // 통계/XP 업데이트는 UI 응답에 불필요 — fire-and-forget으로 지연 제거
     final xpEarned = (hasReportedToday ? 0 : 10) + (isNewCafe ? 5 : 0);
+    _client.rpc('update_user_stats', params: {'p_user_id': userId}).catchError((_) => null);
     if (xpEarned > 0) {
-      try {
-        await _client.rpc('award_xp', params: {
-          'p_user_id': userId,
-          'p_xp': xpEarned,
-        });
-      } catch (_) {}
+      _client.rpc('award_xp', params: {
+        'p_user_id': userId,
+        'p_xp': xpEarned,
+      }).catchError((_) => null);
     }
   }
 

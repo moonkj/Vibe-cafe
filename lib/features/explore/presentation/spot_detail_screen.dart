@@ -1,4 +1,3 @@
-import 'dart:math' show cos, sin, pi;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1046,21 +1045,9 @@ class _BookmarkButton extends ConsumerStatefulWidget {
   ConsumerState<_BookmarkButton> createState() => _BookmarkButtonState();
 }
 
-class _BookmarkButtonState extends ConsumerState<_BookmarkButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl = AnimationController(
-    duration: const Duration(milliseconds: 650),
-    vsync: this,
-  );
-  bool _showParticles = false;
+class _BookmarkButtonState extends ConsumerState<_BookmarkButton> {
   // 낙관적 업데이트용 로컬 상태 (null = 서버 값 사용)
   bool? _localBookmarked;
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
 
   Future<void> _toggle() async {
     final current = _localBookmarked ??
@@ -1076,13 +1063,6 @@ class _BookmarkButtonState extends ConsumerState<_BookmarkButton>
       // 프로필 찜한 카페 목록 갱신
       ref.invalidate(bookmarkedSpotsProvider);
       ref.invalidate(isBookmarkedProvider(widget.spot.id));
-
-      if (newValue && mounted) {
-        setState(() => _showParticles = true);
-        await _ctrl.forward(from: 0);
-        if (mounted) setState(() => _showParticles = false);
-        _ctrl.reset();
-      }
     } catch (_) {
       // 실패 시 롤백
       if (mounted) setState(() => _localBookmarked = current);
@@ -1095,47 +1075,7 @@ class _BookmarkButtonState extends ConsumerState<_BookmarkButton>
         ref.watch(isBookmarkedProvider(widget.spot.id)).asData?.value;
     final isBookmarked = _localBookmarked ?? serverValue ?? false;
 
-    return SizedBox(
-      width: 56,
-      height: 56,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          // ── 하트 파티클 8개 (중앙 → 바깥 방사) ─────────────────
-          if (_showParticles)
-            ...List.generate(8, (i) {
-              final angle = i * (2 * pi / 8) - pi / 2;
-              final radius = (i % 2 == 0) ? 40.0 : 32.0;
-              const colors = [
-                Color(0xFFFF4D7D),
-                Color(0xFFFF8FAB),
-                AppColors.mintGreen,
-                Color(0xFFFF6B9D),
-              ];
-              final color = colors[i % colors.length];
-              final heartSize = (i % 3 == 0) ? 14.0 : 10.0;
-              return AnimatedBuilder(
-                animation: _ctrl,
-                builder: (context, child) {
-                  final t = _ctrl.value;
-                  final progress = Curves.easeOut.transform(t);
-                  final animRadius = progress * radius;
-                  final currentDx = cos(angle) * animRadius;
-                  final currentDy = sin(angle) * animRadius;
-                  final opacity =
-                      (1 - Curves.easeIn.transform(t)).clamp(0.0, 1.0);
-                  return Positioned(
-                    left: 28 + currentDx - heartSize / 2,
-                    top: 28 + currentDy - heartSize / 2,
-                    child: Opacity(opacity: opacity, child: child),
-                  );
-                },
-                child: Icon(Icons.favorite, size: heartSize, color: color),
-              );
-            }),
-          // ── 하트 아이콘 버튼 ───────────────────────────────────
-          IconButton(
+    return IconButton(
             icon: AnimatedSwitcher(
               duration: const Duration(milliseconds: 180),
               transitionBuilder: (child, animation) => ScaleTransition(
@@ -1152,9 +1092,6 @@ class _BookmarkButtonState extends ConsumerState<_BookmarkButton>
               ),
             ),
             onPressed: _toggle,
-          ),
-        ],
-      ),
     );
   }
 }
