@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -54,6 +55,8 @@ class MapController extends Notifier<MapState> {
   // Discovery cache: 30min TTL to limit Places API calls per area
   final _discoveryCache = BoundsCache(ttlSeconds: 1800);
   GoogleMapController? mapController;
+  // Last position where spots were loaded — skip reload if user hasn't moved >300m
+  LatLng? _lastLoadPos;
 
   @override
   MapState build() {
@@ -96,10 +99,14 @@ class MapController extends Notifier<MapState> {
           unawaited(_discoverNearbyCafes(lat: center.latitude, lng: center.longitude));
         }
 
-        // Spots query: always from user position (3km radius from me)
+        // Spots query: only if user moved >300m from last load (prevents
+        // constant reloads — and marker flicker — on every camera pan).
         final pos = state.userPosition;
         if (pos != null) {
-          await _loadSpots(lat: pos.latitude, lng: pos.longitude);
+          final cur = LatLng(pos.latitude, pos.longitude);
+          if (_lastLoadPos == null || _distMeters(_lastLoadPos!, cur) > 300) {
+            await _loadSpots(lat: pos.latitude, lng: pos.longitude);
+          }
         }
       },
     );
@@ -136,6 +143,7 @@ class MapController extends Notifier<MapState> {
   }
 
   Future<void> _loadSpots({required double lat, required double lng}) async {
+    _lastLoadPos = LatLng(lat, lng);
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final spots = await ref.read(spotsRepositoryProvider).getSpotsNear(
@@ -186,6 +194,16 @@ class MapController extends Notifier<MapState> {
         (bounds.northeast.latitude + bounds.southwest.latitude) / 2,
         (bounds.northeast.longitude + bounds.southwest.longitude) / 2,
       );
+
+  /// Approximate flat-earth distance in meters between two LatLng points.
+  double _distMeters(LatLng a, LatLng b) {
+    const metersPerDegLat = 111320.0;
+    final metersPerDegLng =
+        111320.0 * math.cos(a.latitude * math.pi / 180);
+    final dy = (b.latitude - a.latitude) * metersPerDegLat;
+    final dx = (b.longitude - a.longitude) * metersPerDegLng;
+    return math.sqrt(dx * dx + dy * dy);
+  }
 
   // ── Admin dummy mode helpers ─────────────────────────────────────────
 
