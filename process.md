@@ -2207,3 +2207,115 @@ flutter analyze → No issues found ✅
 수정/삭제 2차 확인 다이얼로그 ✅
 Supabase migration 029 원격 적용 ✅
 ```
+
+---
+
+## Phase 35 — 버그 수정 + 법적 문서 인앱 전환 + 라이선스 개선
+
+### 작업 일자: 2026-03-04
+
+---
+
+### Phase 35-1: 다중 버그 수정 (이전 세션 연속)
+
+#### 바이브 체크 제출 후 지도 카드 "측정없음" 유지 버그
+- **원인**: `AsyncValue.valueOrNull` (Riverpod 3.2.1에 미존재) 사용
+- **수정**: `AsyncValue.value` 사용 → 재조회 중(loading)에도 이전 데이터 유지
+- **파일**: `spot_detail_screen.dart`
+
+#### 지도 SpotInfoCard 스팟 정보 미갱신 버그
+- **원인**: `_selectedSpot`이 마커 탭 시 한 번만 set되고 `reloadSpots()` 이후 갱신 안 됨
+- **수정**: `ref.listen(mapControllerProvider.select((s) => s.spots), ...)` → spots 변경 시 `_selectedSpot` 자동 동기화
+- **파일**: `map_screen.dart`
+
+#### 탐색 탭 — 관리자 카페 삭제 후 미반영
+- **원인**: `_nearbySpotsProvider` private → 외부 invalidate 불가
+- **수정**: `nearbySpotsProvider` (public) 로 변경; `_AdminSpotsSheet`를 `ConsumerStatefulWidget`으로 전환 → 삭제 후 `ref.invalidate(nearbySpotsProvider)` + `reloadSpots()` 호출
+- **파일**: `explore_screen.dart`, `settings_screen.dart`
+
+#### 바이브 체크 제출 로딩 최적화
+- 3개 순차 SELECT → `Future.wait` 병렬화
+- `update_user_stats` / `award_xp` fire-and-forget 전환
+- **파일**: `report_repository.dart`
+
+#### 즐겨찾기 하트 파티클 애니메이션 제거
+- `_BookmarkButton`: `SingleTickerProviderStateMixin`, `AnimationController`, 파티클 코드 전부 제거
+- **파일**: `spot_detail_screen.dart`
+
+#### 공유하기 버튼 미동작 수정
+- `Share.share()` 에 `async/await` 추가
+- `Builder` 래핑 → `sharePositionOrigin` (iPad 팝오버 위치) 지원
+- **파일**: `spot_detail_screen.dart`
+
+#### 랭킹 레벨 표시 불일치 수정
+- **원인**: 랭킹 탭 자체 `_levelNum(reports)` (thresholds 5/10/20/50) vs 프로필 `LevelService.calcLevel(totalXp)` 충돌
+- **수정**: `UserRankItem`에 `totalXp` 필드 추가; DB 쿼리에 `total_xp` 포함; `LevelService.calcLevel(item.totalXp)` 통일
+- **파일**: `ranking_repository.dart`, `ranking_screen.dart`
+
+#### 랭킹 3개 탭 실시간 자동 갱신 + pull-to-refresh
+- `initState` → `addPostFrameCallback` → 3개 provider 모두 invalidate
+- `RefreshIndicator` + `AlwaysScrollableScrollPhysics` 모든 탭에 적용
+- **파일**: `ranking_screen.dart`
+
+#### 이번달 첫 바이브 — 닉네임 박스 표시
+- `getFirstReporterNickname()`: `created_at >= 이번달 1일` UTC 필터
+- 말일 23:59 초기화: `nextMonthFirst` 기준으로 자동 전환
+- 지도 카드 UI: "이번달 첫 바이브" 레이블 + 닉네임 민트 테두리 박스
+- **파일**: `report_repository.dart`, `spot_marker_widget.dart`
+
+#### 닉네임 수정 서버 저장 미반영 수정
+- **원인**: 서버 저장 fire-and-forget → 실패 시 로컬만 반영
+- **수정**: `StatefulBuilder` 다이얼로그 내 `await upsertNickname()` 먼저, 성공 후 로컬 저장; 로딩 스피너 + 실패 SnackBar
+- **파일**: `settings_screen.dart`
+
+---
+
+### Phase 35-2: 법적 문서 인앱 전환 + 오픈소스 라이선스 개선
+
+#### 개인정보 처리방침 / 이용약관 — 인앱 Flutter 페이지로 전환
+- **이전**: `launchUrl(uri, mode: LaunchMode.externalApplication)` → Safari 외부 브라우저 (GitHub Pages 의존, 오프라인 불가)
+- **이후**: `Navigator.push` → `_LegalDocPage` 인앱 전체화면 페이지
+  - 민트 그라디언트 헤더 배너, 섹션별 구분선, 강조 박스(highlight)
+  - GitHub Pages 의존성 제거 — 오프라인에서도 정상 표시
+  - `url_launcher` import 불필요로 제거
+
+#### 오픈소스 라이선스 — 커스텀 페이지로 교체
+- **이전**: Flutter 기본 `showLicensePage()` (긴 텍스트 덩어리, 가독성 저하)
+- **이후**: `_OpenSourceLicensePage` 커스텀 리스트 페이지
+  - 21개 주요 패키지 표시
+  - MIT(초록) / BSD-3-Clause(파랑) / Apache 2.0(주황) 라이선스 배지 컬러 구분
+
+#### 다크모드 텍스트 가독성 수정
+- 하드코딩 `Color(0xFF1A1A1A)` / `0xFF444444` → `Theme.of(context).colorScheme.onSurface` 기반
+- `_highlight` 배경: 다크모드 `mintGreen 15% alpha`, 텍스트 `mintGreen`
+- `_contactBox` / 푸터: `surfaceContainerHighest` 자동 적응
+- **파일**: `settings_screen.dart`
+
+#### 법적 문서 내 '소음' → 'dB' 전체 교체
+- 이용약관·개인정보처리방침의 모든 '소음' 단어 → 'dB'로 대체 (총 11곳)
+- **파일**: `settings_screen.dart`
+
+#### 신규/수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `lib/features/settings/presentation/settings_screen.dart` | `_LegalDocPage` + `_OpenSourceLicensePage` 신규; 다크모드 수정; '소음'→'dB' |
+| `lib/features/map/presentation/map_screen.dart` | _selectedSpot 실시간 동기화 |
+| `lib/features/explore/presentation/explore_screen.dart` | nearbySpotsProvider public 전환 |
+| `lib/features/map/presentation/widgets/spot_marker_widget.dart` | 이번달 첫 바이브 UI |
+| `lib/features/ranking/presentation/ranking_screen.dart` | 실시간 갱신 + pull-to-refresh + LevelService 통일 |
+| `lib/features/ranking/data/ranking_repository.dart` | totalXp 필드 추가 |
+| `lib/features/report/data/report_repository.dart` | 병렬화 + 첫 바이브 월별 필터 |
+| `lib/features/explore/presentation/spot_detail_screen.dart` | AsyncValue.value + 파티클 제거 + 공유버튼 |
+
+#### 최종 상태
+```
+flutter analyze → No issues found ✅
+개인정보처리방침 / 이용약관 인앱 표시 (오프라인 포함) ✅
+오픈소스 라이선스 커스텀 페이지 (라이선스 배지 컬러 구분) ✅
+다크모드 법적 문서 텍스트 가독성 ✅
+법적 문서 '소음' → 'dB' 전체 교체 ✅
+랭킹 레벨/갱신/pull-to-refresh ✅
+이번달 첫 바이브 닉네임 박스 + 말일 23:59 초기화 ✅
+닉네임 수정 서버 저장 보장 ✅
+```
