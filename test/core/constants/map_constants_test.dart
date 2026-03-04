@@ -139,14 +139,4 @@ void main() {
     });
   });
 
-  // ── 쿼리 제한 ─────────────────────────────────────────────
-  group('MapConstants — 쿼리 제한', () {
-    test('maxSpotsPerQuery > 0', () {
-      expect(MapConstants.maxSpotsPerQuery, isPositive);
-    });
-
-    test('maxSpotsPerQuery >= 50 (충분한 스팟 로드)', () {
-      expect(MapConstants.maxSpotsPerQuery, greaterThanOrEqualTo(50));
-    });
-  });
 }

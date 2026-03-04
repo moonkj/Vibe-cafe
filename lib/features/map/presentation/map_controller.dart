@@ -121,8 +121,12 @@ class MapController extends Notifier<MapState> {
           .upsertBrandSpots(places);
 
       if (created > 0) {
-        // New cafes added — refresh map spots
-        await _loadSpots(lat: lat, lng: lng);
+        // New cafes added — reload from user position (not camera center)
+        // to avoid overwriting user-position spots with camera-center spots.
+        final pos = state.userPosition;
+        if (pos != null) {
+          await _loadSpots(lat: pos.latitude, lng: pos.longitude);
+        }
       }
     } catch (e) {
       debugPrint('[MapController] cafe discovery error: $e');

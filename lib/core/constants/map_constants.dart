@@ -34,9 +34,6 @@ class MapConstants {
   // Spot inactivity threshold for fading
   static const int spotFadeAfterDays = 30;
 
-  // Max spots per query
-  static const int maxSpotsPerQuery = 100;
-
   // Data freshness
   static const int freshDataHours = 24;
   static const int fallbackDataDays = 7;
