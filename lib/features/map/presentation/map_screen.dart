@@ -45,6 +45,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   final Map<String, BitmapDescriptor> _bitmapCache = {};
   SpotDisplayMode _lastDisplayMode = SpotDisplayMode.hidden;
   bool _hasMovedToUser = false;
+  int _markerGeneration = 0; // 경쟁 조건 방지: 구버전 rebuild가 신버전 결과를 덮어쓰지 않도록
 
   static const _initialCamera = CameraPosition(
     target: LatLng(MapConstants.defaultLat, MapConstants.defaultLng),
@@ -289,7 +290,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ),
 
           // Search place card (search result selected, not yet a spot)
-          if (_searchPrediction != null)
+          if (_searchPrediction != null && _searchLatLng != null)
             Positioned(
               left: 0,
               right: 0,
@@ -364,11 +365,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     List<SpotModel> spots,
     SpotDisplayMode mode,
   ) async {
+    final gen = ++_markerGeneration; // 이 rebuild의 세대 번호 고정
     if (!mounted) return;
     try {
 
     if (mode == SpotDisplayMode.hidden) {
-      setState(() { _markers = {}; _circles = {}; });
+      if (_markerGeneration == gen && mounted) setState(() { _markers = {}; _circles = {}; });
       return;
     }
 
@@ -384,7 +386,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           strokeWidth: 1,
         );
       }).toSet();
-      if (mounted) setState(() { _markers = {}; _circles = newCircles; });
+      if (_markerGeneration == gen && mounted) setState(() { _markers = {}; _circles = newCircles; });
       return;
     }
 
@@ -405,7 +407,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           pixelRatio,
           isReduced: isReduced,
         );
-        if (!mounted) return;
+        if (_markerGeneration != gen || !mounted) return; // 신버전 rebuild로 대체됨
       }
       newMarkers.add(Marker(
         markerId: MarkerId(spot.id),
@@ -421,7 +423,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       ));
     }
 
-    if (mounted) setState(() { _markers = newMarkers; _circles = {}; });
+    if (_markerGeneration == gen && mounted) setState(() { _markers = newMarkers; _circles = {}; });
     } catch (e, st) {
       debugPrint('[MapScreen] _rebuildMarkersAsync error: $e\n$st');
     }

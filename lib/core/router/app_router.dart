@@ -19,14 +19,10 @@ import '../../features/map/data/spots_repository.dart';
 import '../services/supabase_service.dart';
 import '../constants/app_colors.dart';
 
-final routerProvider = Provider<GoRouter>((ref) {
-  final authNotifier = ValueNotifier<bool>(false);
+/// 앱 오픈 시 세션 기록 (하루 1회, ON CONFLICT DO NOTHING으로 중복 방지).
+/// routerProvider와 분리하여 단일 책임 원칙 준수.
+final _sessionRecorderProvider = Provider<void>((ref) {
   var sessionRecorded = false;
-  ref.onDispose(authNotifier.dispose);
-  ref.listen(authStateProvider, (_, _) => authNotifier.value = !authNotifier.value);
-  ref.listen(supabaseInitProvider, (_, _) => authNotifier.value = !authNotifier.value);
-
-  // 앱 오픈 시 세션 기록 (하루 1회, ON CONFLICT DO NOTHING으로 중복 방지)
   ref.listen(authStateProvider, (_, next) {
     if (sessionRecorded) return;
     next.whenData((state) {
@@ -39,6 +35,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
     });
   });
+});
+
+final routerProvider = Provider<GoRouter>((ref) {
+  final authNotifier = ValueNotifier<bool>(false);
+  ref.onDispose(authNotifier.dispose);
+  ref.listen(authStateProvider, (_, _) => authNotifier.value = !authNotifier.value);
+  ref.listen(supabaseInitProvider, (_, _) => authNotifier.value = !authNotifier.value);
+
+  // 세션 기록 — 별도 provider에서 처리
+  ref.read(_sessionRecorderProvider);
 
   return GoRouter(
     initialLocation: '/splash',

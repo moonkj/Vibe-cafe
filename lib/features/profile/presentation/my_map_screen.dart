@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/db_classifier.dart';
+import '../../../core/widgets/app_back_button.dart';
 import '../../map/domain/spot_model.dart';
 import '../../map/presentation/widgets/spot_marker_widget.dart';
 import '../../report/data/report_repository.dart';
@@ -55,35 +56,12 @@ class MyMapScreen extends ConsumerWidget {
             top: 0,
             left: 16,
             child: SafeArea(
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                    borderRadius: BorderRadius.circular(22),
-                    onTap: () => context.canPop() ? context.pop() : context.go('/profile'),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.92),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.18),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.arrow_back,
-                        size: 20,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                ),
+              child: AppBackButton(
+                elevated: true,
+                onTap: () => context.canPop() ? context.pop() : context.go('/profile'),
               ),
             ),
+          ),
 
           // ── 타이틀 ──────────────────────────────────────────────
           Positioned(

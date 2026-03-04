@@ -27,6 +27,8 @@ import '../../../core/services/calibration_service.dart';
 import '../../../core/services/review_service.dart';
 import '../../../core/services/moderation_service.dart';
 import '../../../core/services/suggestion_limit_service.dart';
+import '../../../core/widgets/app_back_button.dart';
+import '../../../core/widgets/app_loading.dart';
 import '../../explore/presentation/explore_screen.dart' show nearbySpotsProvider;
 import '../../map/presentation/map_controller.dart' show mapControllerProvider;
 
@@ -136,10 +138,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             padding: EdgeInsets.only(top: top),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                  onPressed: () => context.go('/profile'),
-                ),
+                AppBackButton(onTap: () => context.go('/profile')),
                 Expanded(
                   child: Text(
                     '설정',
@@ -976,7 +975,7 @@ class _AdminPhotoSheetState extends State<_AdminPhotoSheet> {
           const SizedBox(height: 8),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? AppLoading.fullScreen()
                 : _filtered.isEmpty
                     ? Center(
                         child: Text(
@@ -1504,7 +1503,7 @@ class _AdminRequestsSheetState extends State<_AdminRequestsSheet> {
               future: _future,
               builder: (ctx, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return AppLoading.fullScreen();
                 }
                 // 제안사항([제안]) 제외, 카페 등록/삭제 요청만 표시
                 final list = (snap.data ?? []).where((r) => r.cafeName != '[제안]').toList();
@@ -1883,7 +1882,7 @@ class _AdminSpotsSheetState extends ConsumerState<_AdminSpotsSheet> {
               future: _future,
               builder: (ctx, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return AppLoading.fullScreen();
                 }
                 final list = snap.data ?? [];
                 if (list.isEmpty) {
@@ -2540,7 +2539,7 @@ class _AdminSuggestionsSheetState extends State<_AdminSuggestionsSheet> {
               future: _future,
               builder: (ctx, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return AppLoading.fullScreen();
                 }
                 final list = (snap.data ?? []).where((r) => r.cafeName == '[제안]').toList();
                 if (list.isEmpty) {
@@ -2741,7 +2740,7 @@ class _AdminUserStatsSheetState extends State<_AdminUserStatsSheet> {
               // 내용
               Expanded(
                 child: _loading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? AppLoading.fullScreen()
                     : _error != null
                         ? Center(
                             child: Text(

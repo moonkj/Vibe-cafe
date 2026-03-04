@@ -60,6 +60,7 @@ class MapController extends Notifier<MapState> {
     ref.onDispose(() {
       _debounceTimer?.cancel();
       mapController?.dispose();
+      mapController = null;
     });
     _initLocation();
     // Seed brand cafes from bundled JSON (runs once per install, non-blocking)

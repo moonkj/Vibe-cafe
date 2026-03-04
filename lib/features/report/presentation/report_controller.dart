@@ -59,6 +59,7 @@ class ReportController extends Notifier<ReportState> {
   Timer? _elapsedTimer;
   int _elapsed = 0;
   final List<double> _recentReadings = [];
+  bool _disposed = false;
 
   // GPS focused 5-second sampling at measurement start
   StreamSubscription<Position>? _gpsSub;
@@ -105,7 +106,11 @@ class ReportController extends Notifier<ReportState> {
 
   @override
   ReportState build() {
-    ref.onDispose(_stopMeasurement);
+    _disposed = false;
+    ref.onDispose(() {
+      _disposed = true;
+      _stopMeasurement();
+    });
     return const ReportState();
   }
 
@@ -204,6 +209,7 @@ class ReportController extends Notifier<ReportState> {
     _gpsSamples.clear();
 
     Geolocator.checkPermission().then((permission) {
+      if (_disposed) return;
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         return;
@@ -215,7 +221,7 @@ class ReportController extends Notifier<ReportState> {
           distanceFilter: 0,
         ),
       ).listen((pos) {
-        _gpsSamples.add(pos);
+        if (!_disposed) _gpsSamples.add(pos);
       });
 
       // After 5 seconds, stop stream and resolve best position

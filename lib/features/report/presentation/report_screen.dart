@@ -23,6 +23,7 @@ import 'report_controller.dart';
 import 'widgets/db_meter_widget.dart';
 import 'widgets/privacy_notice_bar.dart';
 import 'widgets/sticker_card_grid.dart';
+import '../../../core/widgets/app_back_button.dart';
 
 class ReportScreen extends ConsumerStatefulWidget {
   final String? spotId;
@@ -134,10 +135,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('바이브 체크'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => context.pop(),
-        ),
+        leading: AppBackButton(onTap: () => context.pop()),
       ),
       body: Column(
         children: [
@@ -798,7 +796,9 @@ class _MemoInput extends StatelessWidget {
             suffixText: hasError ? null : '$count/30',
             suffixStyle: TextStyle(
               fontSize: 12,
-              color: count >= 30 ? Colors.red : const Color(0xFF999999),
+              color: count >= 30
+                  ? Colors.red
+                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
             ),
             filled: true,
             fillColor: Theme.of(context).colorScheme.surface,

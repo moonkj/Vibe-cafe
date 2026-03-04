@@ -64,12 +64,11 @@ class ReportRepository {
       if (moodTag != null && moodTag.isNotEmpty) 'mood_tag': moodTag,
     }).timeout(const Duration(seconds: 10));
 
-    // Update spot EMA average via RPC
+    // Update spot EMA average via RPC (p_user_id removed — server uses auth.uid())
     await _client.rpc('update_spot_after_report', params: {
       'p_spot_id': spotId,
       'p_new_db': measuredDb,
       'p_sticker': sticker?.key,
-      'p_user_id': userId,
     }).timeout(const Duration(seconds: 10));
 
     // 통계/XP 업데이트는 UI 응답에 불필요 — fire-and-forget으로 지연 제거

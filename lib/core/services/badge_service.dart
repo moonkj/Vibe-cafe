@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/level_service.dart';
 
@@ -50,7 +51,9 @@ abstract class BadgeService {
           'p_user_id': userId,
           'p_xp': totalXp,
         });
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[BadgeService] XP award failed: $e');
+      }
     }
 
     return newBadges;
@@ -101,7 +104,9 @@ abstract class BadgeService {
           'p_user_id': userId,
           'p_xp': badge.xpReward,
         });
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[BadgeService] instant XP award failed: $e');
+      }
     }
 
     return badge;
