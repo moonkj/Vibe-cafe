@@ -18,6 +18,11 @@ import 'map_controller.dart';
 import 'widgets/filter_bar.dart';
 import 'widgets/spot_marker_widget.dart';
 
+// 탭 전환 시 비트맵 캐시가 유지되도록 모듈 레벨에 선언.
+// _MapScreenState가 재생성되어도 캐시가 초기화되지 않아 마커 재생성 불필요.
+const int _maxBitmapCacheSize = 150;
+final Map<String, BitmapDescriptor> _spotBitmapCache = {};
+
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
 
@@ -41,8 +46,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Set<Marker> _markers = {};
   Set<Circle> _circles = {};
   List<SpotModel> _lastBuiltSpots = const [];
-  static const int _maxBitmapCacheSize = 100;
-  final Map<String, BitmapDescriptor> _bitmapCache = {};
   SpotDisplayMode _lastDisplayMode = SpotDisplayMode.hidden;
   bool _hasMovedToUser = false;
   int _markerGeneration = 0; // 경쟁 조건 방지: 구버전 rebuild가 신버전 결과를 덮어쓰지 않도록
@@ -393,26 +396,38 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     // individual or reduced: bitmap markers
     final isReduced = mode == SpotDisplayMode.reduced;
     final pixelRatio = MediaQuery.of(context).devicePixelRatio;
-    final newMarkers = <Marker>{};
 
-    for (final spot in spots) {
-      final cacheKey = '${spot.id}_$isReduced';
-      if (!_bitmapCache.containsKey(cacheKey)) {
-        // Evict oldest entry when cache is full (FIFO)
-        if (_bitmapCache.length >= _maxBitmapCacheSize) {
-          _bitmapCache.remove(_bitmapCache.keys.first);
+    // 캐시 미존재 스팟만 수집해 병렬 생성 (Future.wait).
+    // 탭 전환 시 _spotBitmapCache(모듈 레벨)는 유지되므로 재생성 불필요.
+    final toGenerate = spots
+        .where((s) => !_spotBitmapCache.containsKey('${s.id}_$isReduced'))
+        .toList();
+
+    if (toGenerate.isNotEmpty) {
+      final bitmaps = await Future.wait(
+        toGenerate.map((s) => SpotMarkerWidget.toBitmapDescriptor(
+              s, pixelRatio,
+              isReduced: isReduced,
+            )),
+      );
+      if (_markerGeneration != gen || !mounted) return;
+      for (var i = 0; i < toGenerate.length; i++) {
+        final key = '${toGenerate[i].id}_$isReduced';
+        if (_spotBitmapCache.length >= _maxBitmapCacheSize) {
+          _spotBitmapCache.remove(_spotBitmapCache.keys.first);
         }
-        _bitmapCache[cacheKey] = await SpotMarkerWidget.toBitmapDescriptor(
-          spot,
-          pixelRatio,
-          isReduced: isReduced,
-        );
-        if (_markerGeneration != gen || !mounted) return; // 신버전 rebuild로 대체됨
+        _spotBitmapCache[key] = bitmaps[i];
       }
+    }
+
+    final newMarkers = <Marker>{};
+    for (final spot in spots) {
+      final bitmap = _spotBitmapCache['${spot.id}_$isReduced'];
+      if (bitmap == null) continue; // 캐시 미스 (엣지 케이스 방어)
       newMarkers.add(Marker(
         markerId: MarkerId(spot.id),
         position: LatLng(spot.lat, spot.lng),
-        icon: _bitmapCache[cacheKey]!,
+        icon: bitmap,
         alpha: spot.markerOpacity,
         onTap: () => setState(() {
           _selectedSpot = spot;
