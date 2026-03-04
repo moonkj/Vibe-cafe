@@ -225,10 +225,14 @@ class ReportRepository {
   /// Returns the nickname of the first person who measured this spot.
   /// Returns null if no reports exist.
   Future<String?> getFirstReporterNickname(String spotId) async {
+    // 매달 1일 기준 이번 달 최초 측정자
+    final now = DateTime.now().toUtc();
+    final monthStart = DateTime.utc(now.year, now.month).toIso8601String();
     final reportResp = await _client
         .from('reports')
         .select('user_id')
         .eq('spot_id', spotId)
+        .gte('created_at', monthStart)
         .order('created_at', ascending: true)
         .limit(1)
         .maybeSingle();

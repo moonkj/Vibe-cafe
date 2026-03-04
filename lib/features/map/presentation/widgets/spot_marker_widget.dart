@@ -282,17 +282,46 @@ class SpotInfoCard extends ConsumerWidget {
                         ),
                         if (hasData)
                           Padding(
-                            padding: const EdgeInsets.only(top: 4, right: 2),
+                            padding: const EdgeInsets.only(top: 6, right: 2),
                             child: firstReporterAsync.when(
                               data: (name) => name == null
                                   ? const SizedBox.shrink()
-                                  : Text(
-                                      '첫 바이브: $name',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.mintGreen,
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                                  : Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        const Text(
+                                          '이번달 첫 바이브',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: AppColors.mintGreen,
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.mintGreen
+                                                .withValues(alpha: 0.12),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: AppColors.mintGreen
+                                                  .withValues(alpha: 0.45),
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            name,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.mintGreen,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                               loading: () => const SizedBox(
                                 width: 14, height: 14,
