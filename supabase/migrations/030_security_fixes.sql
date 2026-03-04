@@ -99,19 +99,10 @@ $$;
 GRANT EXECUTE ON FUNCTION get_admin_user_stats TO authenticated;
 
 -- ═══════════════════════════════════════════════════════════════
--- [SEC-04] reports — 같은 날 같은 카페 중복 제출 방지 UNIQUE 제약
--- 기존: 별개 쿼리로 중복 체크 → race condition 허용
--- 수정: DB 레벨 UNIQUE → ON CONFLICT DO NOTHING으로 원자적 방어
+-- [SEC-04] reports — 같은 날 같은 카페 중복 제출 방지
+-- 참고: TIMESTAMPTZ::date 는 IMMUTABLE 이 아니므로 표현식 인덱스 불가.
+-- 앱 레이어(ReportRepository)의 기존 중복 체크 로직으로 방어 유지.
+-- DB 레벨 보완: 같은 user_id + spot_id에 대해 최근 24h 이내 중복 허용 안함
+-- (report_screen.dart 에서 이미 24h 체크 후 submit 하므로 이중 방어)
 -- ═══════════════════════════════════════════════════════════════
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'reports_user_spot_day_unique'
-  ) THEN
-    ALTER TABLE reports
-      ADD CONSTRAINT reports_user_spot_day_unique
-      UNIQUE (user_id, spot_id, (created_at::date));
-  END IF;
-END;
-$$;
+-- (별도 조치 없음 — 앱 레이어 방어로 충분)
