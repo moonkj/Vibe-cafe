@@ -115,6 +115,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
 
     return Scaffold(
+      resizeToAvoidBottomInset: false, // 키보드 표시 시 지도 밀림 방지
       body: Stack(
         children: [
           // Google Map
