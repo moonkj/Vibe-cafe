@@ -1811,6 +1811,66 @@ class _AdminSpotsSheetState extends ConsumerState<_AdminSpotsSheet> {
     );
   }
 
+  Future<void> _renameSpot(BuildContext context, AdminSpot spot) async {
+    final nameCtrl = TextEditingController(text: spot.name);
+    bool loading = false;
+
+    await showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          title: const Text('이름 수정'),
+          content: TextField(
+            controller: nameCtrl,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: '카페 이름 *'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: loading
+                  ? null
+                  : () async {
+                      final name = nameCtrl.text.trim();
+                      if (name.isEmpty) return;
+                      setSt(() => loading = true);
+                      try {
+                        await widget.spotsRepo.updateSpot(
+                          spot.id,
+                          name: name,
+                          formattedAddress: spot.formattedAddress,
+                          lat: spot.lat,
+                          lng: spot.lng,
+                        );
+                        if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                        _refresh();
+                      } catch (e) {
+                        setSt(() => loading = false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('오류: $e')),
+                          );
+                        }
+                      }
+                    },
+              child: loading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('저장',
+                      style: TextStyle(color: AppColors.mintGreen)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _deleteSpot(BuildContext context, AdminSpot spot) async {
     // 1차 확인
     final confirmed = await showDialog<bool>(
@@ -1966,7 +2026,14 @@ class _AdminSpotsSheetState extends ConsumerState<_AdminSpotsSheet> {
                                   child: const Text('삭제',
                                       style: TextStyle(color: Colors.red)),
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 4),
+                                TextButton(
+                                  onPressed: () => _renameSpot(context, s),
+                                  child: const Text('이름',
+                                      style: TextStyle(
+                                          color: AppColors.mintGreen)),
+                                ),
+                                const SizedBox(width: 4),
                                 ElevatedButton(
                                   onPressed: () => _editSpot(context, s),
                                   style: ElevatedButton.styleFrom(

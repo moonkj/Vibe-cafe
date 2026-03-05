@@ -1,6 +1,6 @@
 # Cafe Vibe — 개발 진행 현황 (Process Log)
 
-마지막 업데이트: 2026-03-04 (Phase 35 완료 ✅ — 보안/안정성/성능 전체 적용, 지도 마커 로딩 최적화, flutter analyze 0 issues)
+마지막 업데이트: 2026-03-05 (Phase 36 완료 ✅ — 계정삭제 RPC, Places New API 전환, 비카페 필터링, 관리자 이름수정, flutter analyze 0 issues)
 
 ---
 
@@ -39,6 +39,7 @@ Phase 30: 보안/버그/성능 강화  ████████████ 100%
 Phase 32-33: App Store 준비   ████████████ 100% ✅ (ATT ✅, 계정삭제 명확화 ✅, 에러배너 ✅, 탐색탭 개선 ✅, terms-of-service.html ✅)
 Phase 34: 법적문서·관리자 강화  ████████████ 100% ✅ (privacy-policy 재작성 ✅, 전체카페관리 ✅, 신규등록폼 ✅, 키보드버그 완전 수정 ✅)
 Phase 35: 보안/안정성/성능      ████████████ 100% ✅ (SQL 보안 강화 ✅, 마커 비트맵 캐시 전역화 ✅, 병렬 생성 ✅, 좌표 검증 ✅)
+Phase 36: 비카페 필터링·API     ████████████ 100% ✅ (계정삭제 RPC ✅, Places New API ✅, 비카페 필터 ✅, 관리자 이름수정 ✅)
 Phase 13: App Store 준비      ████████░░░░  70% 🔄 (GitHub Pages ✅, IPA 45.8MB ✅, TestFlight ⏳, ASC 정보 ⏳)
 아키텍처: 소셜로그인 필수화     ████████████ 100% ✅ (Apple/Google/Email ✅, SecureLocalStorage ✅, 닉네임 서비스 ✅)
 ```
@@ -46,6 +47,35 @@ Phase 13: App Store 준비      ████████░░░░  70% 🔄 (
 ---
 
 ## ✅ 완료된 작업
+
+### Phase 36: 비카페 필터링 · Places New API · 관리자 강화 (2026-03-05)
+
+#### 계정 삭제 RPC
+- [x] `039_delete_account_full_rpc.sql`: Edge Function 폐기 → `delete_my_account_full()` SECURITY DEFINER RPC (auth.users 직접 삭제)
+- [x] `auth_repository.dart`: `deleteAccount()` → RPC 호출 + `bool` 반환 (true=완전삭제, false=부분실패)
+- [x] `settings_screen.dart`: 삭제 실패 시 오류 SnackBar 표시
+
+#### 비카페 스팟 정리 (DB 마이그레이션)
+- [x] `040_cleanup_zero_report_spots.sql`: `report_count = 0` 스팟 전체 삭제 (마사지샵·가구점 등)
+- [x] `041_spots_near_require_reports.sql`: `get_spots_near` — `report_count >= 1` 조건 추가
+- [x] `042_spots_near_smart_filter.sql`: 스마트 7일 필터 + 비카페 키워드 DELETE (PC방·의류·침구 등)
+- [x] `043_spots_near_no_expiry.sql`: **최종** — `report_count >= 1` 영구표시 / `= 0` 90일 창
+- [x] `044_cleanup_english_brand_spots.sql`: 순 영문 이름 0측정 스팟 삭제 (재발견됨)
+
+#### Google Places (New) API 전환
+- [x] `places_service.dart` `nearbyCafes()`: Old GET `nearbysearch/json` → New POST `places:searchNearby` (`includedPrimaryTypes: ["cafe","coffee_shop"]`)
+- [x] `places_service.dart` `autocomplete()`: Old GET `autocomplete/json` → New POST `places:autocomplete` (`includedPrimaryTypes: ["cafe","coffee_shop"]`)
+- [x] `_nonCafeKeywords` 한국 로컬 비카페 블랙리스트 + `_isNonCafe()` 2차 안전망
+- [x] `nearbyBrandCafes()` 데드코드 + `_brandKeywords` 배열 삭제
+- [x] `test/core/services/places_service_test.dart`: New API 응답 포맷 + 블랙리스트 테스트 반영
+
+#### 관리자 카페 이름 수정
+- [x] `settings_screen.dart` `_renameSpot()`: 이름 전용 간단 다이얼로그 (autofocus, 이름 1개 필드)
+- [x] 관리자 스팟 행에 "이름" TextButton 추가 (삭제 | 이름 | 수정)
+
+**결과**: `flutter analyze` 0 issues, 지도/검색에서 비카페 장소 미표시
+
+---
 
 ### Phase 35: 보안 / 안정성 / 성능 강화 (2026-03-04)
 
