@@ -80,6 +80,7 @@ class PlacesService {
       'key': _mapsApiKey,
       'language': 'ko',
       'components': 'country:kr',
+      'types': 'food',  // 음식/음료 업종만 — 마사지샵·미용실 등 제외
     };
     if (lat != null && lng != null) {
       params['location'] = '$lat,$lng';
