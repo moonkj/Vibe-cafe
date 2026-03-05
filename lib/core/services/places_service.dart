@@ -63,48 +63,77 @@ class PlacesService {
   final http.Client _client;
   PlacesService({http.Client? client}) : _client = client ?? http.Client();
 
-  /// Returns autocomplete predictions for [input], biased toward [lat]/[lng].
+  /// Returns autocomplete predictions for [input] using Places (New) Autocomplete API.
+  ///
+  /// `includedPrimaryTypes: ["cafe","coffee_shop"]` — 카페/커피숍 primary type만
+  /// 허용하므로 마사지샵·미용실 등이 검색 결과에 나타나지 않음.
   Future<List<PlacePrediction>> autocomplete(
     String input, {
     double? lat,
     double? lng,
   }) async {
     if (input.trim().isEmpty) return [];
+    if (_mapsApiKey.isEmpty) return [];
 
-    final params = <String, String>{
+    final bodyMap = <String, dynamic>{
       'input': input,
-      'key': _mapsApiKey,
-      'language': 'ko',
-      'components': 'country:kr',
-      'types': 'food', // 음식/음료 업종만 — 마사지샵·미용실 등 제외
+      'languageCode': 'ko',
+      'regionCode': 'KR',
+      'includedPrimaryTypes': ['cafe', 'coffee_shop'],
     };
     if (lat != null && lng != null) {
-      params['location'] = '$lat,$lng';
-      params['radius'] = '50000';
+      bodyMap['locationBias'] = {
+        'circle': {
+          'center': {'latitude': lat, 'longitude': lng},
+          'radius': 50000.0,
+        },
+      };
     }
 
     try {
       final uri = Uri.https(
-        'maps.googleapis.com',
-        '/maps/api/place/autocomplete/json',
-        params,
+        'places.googleapis.com',
+        '/v1/places:autocomplete',
       );
-      final response = await _client.get(uri).timeout(const Duration(seconds: 5));
+      final response = await _client
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': _mapsApiKey,
+              'X-Goog-FieldMask':
+                  'suggestions.placePrediction.placeId,'
+                  'suggestions.placePrediction.structuredFormat',
+            },
+            body: json.encode(bodyMap),
+          )
+          .timeout(const Duration(seconds: 5));
+
       if (response.statusCode != 200) return [];
 
       final data = json.decode(response.body) as Map<String, dynamic>;
-      final predictions = data['predictions'] as List<dynamic>? ?? [];
+      final suggestions = data['suggestions'] as List<dynamic>? ?? [];
 
-      return predictions.map((p) {
-        final structured =
-            p['structured_formatting'] as Map<String, dynamic>? ?? {};
-        return PlacePrediction(
-          placeId: p['place_id'] as String,
-          mainText: structured['main_text'] as String? ??
-              p['description'] as String,
-          secondaryText: structured['secondary_text'] as String? ?? '',
-        );
-      }).toList();
+      return suggestions
+          .map((s) {
+            final pp = s['placePrediction'] as Map<String, dynamic>?;
+            if (pp == null) return null;
+            final sf = pp['structuredFormat'] as Map<String, dynamic>? ?? {};
+            final main = (sf['mainText'] as Map<String, dynamic>?)?['text']
+                as String? ?? '';
+            final secondary =
+                (sf['secondaryText'] as Map<String, dynamic>?)?['text']
+                    as String? ?? '';
+            final placeId = pp['placeId'] as String?;
+            if (placeId == null || main.isEmpty) return null;
+            return PlacePrediction(
+              placeId: placeId,
+              mainText: main,
+              secondaryText: secondary,
+            );
+          })
+          .whereType<PlacePrediction>()
+          .toList();
     } catch (e) {
       debugPrint('[Places] autocomplete error: $e');
       return [];

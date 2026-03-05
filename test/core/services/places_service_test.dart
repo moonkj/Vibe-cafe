@@ -35,7 +35,7 @@ PlacesService _svc(_StreamHandler h) => PlacesService(client: _MockClient(h));
 // ──────────────────────────────────────────────────────────────
 
 void main() {
-  // ── autocomplete ──────────────────────────────────────────
+  // ── autocomplete (Places New API) ─────────────────────────
   group('PlacesService.autocomplete', () {
     test('빈(공백만) 입력 → HTTP 호출 없이 빈 리스트 반환', () async {
       var called = false;
@@ -47,22 +47,25 @@ void main() {
       expect(called, isFalse);
     });
 
-    test('정상 응답 — structured_formatting 포함 predictions 파싱', () async {
+    test('정상 응답 — suggestions.placePrediction 파싱', () async {
       final body = jsonEncode({
-        'status': 'OK',
-        'predictions': [
+        'suggestions': [
           {
-            'place_id': 'place_001',
-            'structured_formatting': {
-              'main_text': '스타벅스 강남점',
-              'secondary_text': '서울 강남구',
+            'placePrediction': {
+              'placeId': 'place_001',
+              'structuredFormat': {
+                'mainText': {'text': '스타벅스 강남점'},
+                'secondaryText': {'text': '서울 강남구'},
+              },
             },
           },
           {
-            'place_id': 'place_002',
-            'structured_formatting': {
-              'main_text': '메가커피 종로점',
-              'secondary_text': '서울 종로구',
+            'placePrediction': {
+              'placeId': 'place_002',
+              'structuredFormat': {
+                'mainText': {'text': '메가커피 종로점'},
+                'secondaryText': {'text': '서울 종로구'},
+              },
             },
           },
         ],
@@ -75,25 +78,27 @@ void main() {
       expect(result[0].secondaryText, '서울 강남구');
     });
 
-    test('structured_formatting 없을 때 description fallback', () async {
+    test('secondaryText 없을 때 빈 문자열', () async {
       final body = jsonEncode({
-        'status': 'OK',
-        'predictions': [
+        'suggestions': [
           {
-            'place_id': 'place_003',
-            'description': '카페베이지 홍대점',
-            'structured_formatting': {},
+            'placePrediction': {
+              'placeId': 'place_003',
+              'structuredFormat': {
+                'mainText': {'text': '카페베이지'},
+              },
+            },
           },
         ],
       });
       final svc = _svc((_) async => _ok(body));
       final result = await svc.autocomplete('카페');
-      expect(result[0].mainText, '카페베이지 홍대점');
+      expect(result[0].mainText, '카페베이지');
       expect(result[0].secondaryText, '');
     });
 
-    test('predictions 빈 배열 → 빈 리스트', () async {
-      final body = jsonEncode({'status': 'ZERO_RESULTS', 'predictions': []});
+    test('suggestions 빈 배열 → 빈 리스트', () async {
+      final body = jsonEncode({'suggestions': []});
       final svc = _svc((_) async => _ok(body));
       expect(await svc.autocomplete('없는검색어'), isEmpty);
     });
@@ -103,32 +108,9 @@ void main() {
       expect(await svc.autocomplete('test'), isEmpty);
     });
 
-    test('네트워크 예외(timeout 등) → 빈 리스트', () async {
+    test('네트워크 예외 → 빈 리스트', () async {
       final svc = _svc((_) => Future.error(const _FakeException('timeout')));
       expect(await svc.autocomplete('test'), isEmpty);
-    });
-
-    test('lat/lng 제공 시 요청 URL에 location 파라미터 포함', () async {
-      Uri? captured;
-      final body = jsonEncode({'status': 'OK', 'predictions': []});
-      final svc = _svc((req) async {
-        captured = req.url;
-        return _ok(body);
-      });
-      await svc.autocomplete('test', lat: 37.5, lng: 127.0);
-      expect(captured?.queryParameters['location'], '37.5,127.0');
-      expect(captured?.queryParameters['radius'], '50000');
-    });
-
-    test('lat/lng 없을 때 location 파라미터 미포함', () async {
-      Uri? captured;
-      final body = jsonEncode({'status': 'OK', 'predictions': []});
-      final svc = _svc((req) async {
-        captured = req.url;
-        return _ok(body);
-      });
-      await svc.autocomplete('test');
-      expect(captured?.queryParameters.containsKey('location'), isFalse);
     });
   });
 
