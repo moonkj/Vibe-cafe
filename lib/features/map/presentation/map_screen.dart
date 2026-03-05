@@ -850,7 +850,7 @@ class _SearchBarState extends ConsumerState<_SearchBar> {
               scrollPadding: EdgeInsets.zero, // 키보드 노출 시 자동 스크롤 방지
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: '카페, 도서관, 공원 검색...',
+                hintText: '검색',
                 hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 15),
                 prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textHint, size: 20),
                 suffixIcon: ListenableBuilder(

@@ -714,12 +714,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }
 
   void _confirmDataReset(BuildContext context) {
+    // 관리자 계정 삭제 방지 — 삭제 시 UUID가 사라져 관리자 권한 영구 소실
+    if (_isAdmin) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('계정 삭제 불가'),
+          content: const Text('관리자 계정은 삭제할 수 없습니다.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('확인'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
         title: const Text('계정 삭제'),
         content: const Text(
-          '계정을 삭제하면 모든 측정 기록, 뱃지, 닉네임이 삭제되고\n새로운 사용자로 다시 시작됩니다.\n\n이 작업은 되돌릴 수 없습니다.',
+          '계정을 삭제하면 모든 측정 기록, 뱃지, 닉네임이 영구 삭제됩니다.\n\n이 작업은 되돌릴 수 없습니다.',
+          textAlign: TextAlign.left,
         ),
         actions: [
           TextButton(
