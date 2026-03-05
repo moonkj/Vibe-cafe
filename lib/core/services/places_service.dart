@@ -5,9 +5,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 // Google Maps API key — must be supplied via --dart-define=MAPS_API_KEY=... at build time.
-// No fallback defaultValue: an empty key surfaces API errors immediately rather than
-// shipping a hardcoded key in source control.
 const _mapsApiKey = String.fromEnvironment('MAPS_API_KEY', defaultValue: '');
+
+// 한국 로컬 비카페 블랙리스트 (Places New API 이후 2차 안전망)
+const _nonCafeKeywords = [
+  'pc방', 'pc 방', 'pcroom', '피시방',
+  '편의점', '마트', '슈퍼마켓',
+  '의류', '옷가게', '옷짱', '패션',
+  '침구', '가구', '인테리어',
+  '마사지', '안마원', '찜질방',
+  '헬스장', '피트니스',
+  '세탁소', '미용실', '네일샵',
+  '약국', '동물병원',
+];
+
+bool _isNonCafe(String name) {
+  final lower = name.toLowerCase();
+  return _nonCafeKeywords.any((kw) => lower.contains(kw));
+}
 
 class PlacePrediction {
   final String placeId;
@@ -44,25 +59,6 @@ class PlaceResult {
   });
 }
 
-/// Brand name keywords (Korean + English) used to filter Nearby Search results.
-const _brandKeywords = [
-  '스타벅스', 'starbucks',
-  '투썸플레이스', 'a twosome', 'twosome',
-  '이디야', 'ediya',
-  '메가커피', '메가mgc', 'mega coffee',
-  '할리스', 'hollys',
-  '컴포즈커피', 'compose coffee',
-  '파스쿠찌', 'pascucci',
-  '탐앤탐스', 'tom n toms', 'tomntoms',
-  '커피빈', 'coffee bean',
-  '엔제리너스', 'angelinus',
-  '폴바셋', 'paul bassett',
-  '블루보틀', 'blue bottle',
-  '카페베네', 'caffe bene',
-  '빽다방', 'paik',
-  '드롭탑', 'droptop',
-];
-
 class PlacesService {
   final http.Client _client;
   PlacesService({http.Client? client}) : _client = client ?? http.Client();
@@ -80,7 +76,7 @@ class PlacesService {
       'key': _mapsApiKey,
       'language': 'ko',
       'components': 'country:kr',
-      'types': 'food',  // 음식/음료 업종만 — 마사지샵·미용실 등 제외
+      'types': 'food', // 음식/음료 업종만 — 마사지샵·미용실 등 제외
     };
     if (lat != null && lng != null) {
       params['location'] = '$lat,$lng';
@@ -94,12 +90,9 @@ class PlacesService {
         params,
       );
       final response = await _client.get(uri).timeout(const Duration(seconds: 5));
-      final body = response.body;
-      debugPrint('[Places] HTTP ${response.statusCode} | ${body.length > 300 ? body.substring(0, 300) : body}');
       if (response.statusCode != 200) return [];
 
-      final data = json.decode(body) as Map<String, dynamic>;
-      debugPrint('[Places] status=${data['status']} error=${data['error_message']}');
+      final data = json.decode(response.body) as Map<String, dynamic>;
       final predictions = data['predictions'] as List<dynamic>? ?? [];
 
       return predictions.map((p) {
@@ -131,16 +124,12 @@ class PlacesService {
         },
       );
       final response = await _client.get(uri).timeout(const Duration(seconds: 5));
-      final body = response.body;
-      debugPrint('[Places] details HTTP ${response.statusCode} | ${body.length > 300 ? body.substring(0, 300) : body}');
       if (response.statusCode != 200) return null;
 
-      final data = json.decode(body) as Map<String, dynamic>;
-      debugPrint('[Places] details status=${data['status']} error=${data['error_message']}');
+      final data = json.decode(response.body) as Map<String, dynamic>;
       final result = data['result'] as Map<String, dynamic>?;
       final location = (result?['geometry'] as Map<String, dynamic>?)?['location']
           as Map<String, dynamic>?;
-      debugPrint('[Places] details location=$location');
       if (location == null) return null;
 
       return PlaceLatLng(
@@ -187,133 +176,74 @@ class PlacesService {
     }
   }
 
-  /// Returns brand cafes near [lat]/[lng] using Google Places Nearby Search.
-  /// Filters results to known brand names only.
-  /// [radiusMeters] defaults to 3 km.
-  Future<List<PlaceResult>> nearbyBrandCafes({
-    required double lat,
-    required double lng,
-    int radiusMeters = 3000,
-  }) async {
-    try {
-      final uri = Uri.https(
-        'maps.googleapis.com',
-        '/maps/api/place/nearbysearch/json',
-        {
-          'location': '$lat,$lng',
-          'radius': '$radiusMeters',
-          'type': 'cafe',
-          'key': _mapsApiKey,
-          'language': 'ko',
-        },
-      );
-
-      final response = await _client.get(uri).timeout(const Duration(seconds: 8));
-      if (response.statusCode != 200) return [];
-
-      final data = json.decode(response.body) as Map<String, dynamic>;
-      final status = data['status'] as String?;
-      if (status != 'OK' && status != 'ZERO_RESULTS') return [];
-
-      final results = data['results'] as List<dynamic>? ?? [];
-      final brandCafes = <PlaceResult>[];
-
-      for (final r in results) {
-        final name = r['name'] as String? ?? '';
-        final lower = name.toLowerCase();
-
-        // Only include recognized brand cafes
-        if (!_brandKeywords.any((kw) => lower.contains(kw.toLowerCase()))) continue;
-
-        final geo = (r['geometry'] as Map<String, dynamic>?)?['location']
-            as Map<String, dynamic>?;
-        if (geo == null) continue;
-
-        brandCafes.add(PlaceResult(
-          placeId: r['place_id'] as String,
-          name: name,
-          lat: (geo['lat'] as num).toDouble(),
-          lng: (geo['lng'] as num).toDouble(),
-        ));
-      }
-
-      return brandCafes;
-    } catch (e) {
-      debugPrint('[Places] nearbyBrandCafes error: $e');
-      return [];
-    }
-  }
-
-  /// Returns ALL cafes near [lat]/[lng] (no brand filter), up to 3 pages (60 results).
-  /// Includes `formattedAddress` via Place Details when available from the Nearby response.
-  /// [radiusMeters] defaults to 3 km.
+  /// Returns cafes near [lat]/[lng] using Places (New) Nearby Search API.
+  ///
+  /// Uses `includedPrimaryTypes: ["cafe", "coffee_shop"]` — primary type이
+  /// 카페/커피숍인 장소만 반환하므로 PC방·마사지샵 등이 섞이지 않음.
+  /// 추가로 한국 로컬 비카페 키워드 블랙리스트로 2차 필터링.
   Future<List<PlaceResult>> nearbyCafes({
     required double lat,
     required double lng,
     int radiusMeters = 3000,
   }) async {
+    if (_mapsApiKey.isEmpty) return [];
     try {
-      final all = <PlaceResult>[];
-      String? pageToken;
-      int page = 0;
+      final uri = Uri.https(
+        'places.googleapis.com',
+        '/v1/places:searchNearby',
+      );
 
-      do {
-        final params = <String, String>{
-          'location': '$lat,$lng',
-          'radius': '$radiusMeters',
-          'type': 'cafe',
-          'key': _mapsApiKey,
-          'language': 'ko',
-          'pagetoken': ?pageToken,
-        };
+      final body = json.encode({
+        'includedPrimaryTypes': ['cafe', 'coffee_shop'],
+        'locationRestriction': {
+          'circle': {
+            'center': {'latitude': lat, 'longitude': lng},
+            'radius': radiusMeters.toDouble(),
+          },
+        },
+        'maxResultCount': 20,
+        'languageCode': 'ko',
+      });
 
-        final uri = Uri.https(
-          'maps.googleapis.com',
-          '/maps/api/place/nearbysearch/json',
-          params,
-        );
+      final response = await _client
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': _mapsApiKey,
+              'X-Goog-FieldMask':
+                  'places.id,places.displayName,places.location,places.formattedAddress',
+            },
+            body: body,
+          )
+          .timeout(const Duration(seconds: 10));
 
-        final response =
-            await _client.get(uri).timeout(const Duration(seconds: 10));
-        if (response.statusCode != 200) break;
+      debugPrint('[Places] nearbyCafes (New) HTTP ${response.statusCode}');
+      if (response.statusCode != 200) return [];
 
-        final data = json.decode(response.body) as Map<String, dynamic>;
-        final status = data['status'] as String?;
-        if (status != 'OK' && status != 'ZERO_RESULTS') break;
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final places = data['places'] as List<dynamic>? ?? [];
 
-        final results = data['results'] as List<dynamic>? ?? [];
-        for (final r in results) {
-          final name = r['name'] as String? ?? '';
-          final geo = (r['geometry'] as Map<String, dynamic>?)?['location']
-              as Map<String, dynamic>?;
-          if (geo == null) continue;
+      final results = <PlaceResult>[];
+      for (final p in places) {
+        final name =
+            (p['displayName'] as Map<String, dynamic>?)?['text'] as String? ?? '';
+        if (name.isEmpty || _isNonCafe(name)) continue;
 
-          // types 필터: 실제 음식/음료 업종만 포함 (세탁소·미용실 등 오분류 제외)
-          final types = (r['types'] as List<dynamic>? ?? []).cast<String>();
-          const foodTypes = {'cafe', 'food', 'bakery', 'bar', 'restaurant'};
-          if (!types.any(foodTypes.contains)) continue;
+        final location = p['location'] as Map<String, dynamic>?;
+        if (location == null) continue;
 
-          final vicinity = r['vicinity'] as String?;
-          all.add(PlaceResult(
-            placeId: r['place_id'] as String,
-            name: name,
-            lat: (geo['lat'] as num).toDouble(),
-            lng: (geo['lng'] as num).toDouble(),
-            formattedAddress: vicinity,
-          ));
-        }
+        results.add(PlaceResult(
+          placeId: p['id'] as String,
+          name: name,
+          lat: (location['latitude'] as num).toDouble(),
+          lng: (location['longitude'] as num).toDouble(),
+          formattedAddress: p['formattedAddress'] as String?,
+        ));
+      }
 
-        pageToken = data['next_page_token'] as String?;
-        page++;
-
-        // Google requires a short delay before next page token is valid
-        if (pageToken != null && page < 3) {
-          await Future.delayed(const Duration(seconds: 2));
-        }
-      } while (pageToken != null && page < 3);
-
-      debugPrint('[Places] nearbyCafes: ${all.length} results ($page pages)');
-      return all;
+      debugPrint('[Places] nearbyCafes (New): ${results.length} cafes');
+      return results;
     } catch (e) {
       debugPrint('[Places] nearbyCafes error: $e');
       return [];
@@ -321,11 +251,9 @@ class PlacesService {
   }
 
   /// Returns a cacheable CDN photo URL for [placeId] using Google Places (New) API.
-  /// The returned URL is a direct lh3.googleusercontent.com CDN link (no API key embedded).
   Future<String?> getPhotoUrl(String placeId, {int maxWidth = 600}) async {
     if (_mapsApiKey.isEmpty) return null;
     try {
-      // Step 1: Get photo name via Place Details (New) API.
       final detailsUri = Uri.https(
         'places.googleapis.com',
         '/v1/places/$placeId',
@@ -344,7 +272,6 @@ class PlacesService {
           (photos[0] as Map<String, dynamic>)['name'] as String?;
       if (photoName == null) return null;
 
-      // Step 2: Resolve the CDN URL (skipHttpRedirect → JSON { "photoUri": "..." }).
       final mediaUri = Uri.https(
         'places.googleapis.com',
         '/v1/$photoName/media',
