@@ -16,6 +16,7 @@ import '../../../core/widgets/app_loading.dart';
 import 'badge_detail_sheet.dart';
 import 'nickname_setup_sheet.dart';
 import 'widgets/level_up_animation.dart';
+import '../../auth/data/auth_repository.dart';
 
 /// Admin-only: when true, all badges are shown as unlocked in profile.
 class _AdminBadgePreviewNotifier extends Notifier<bool> {
@@ -95,6 +96,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final client = ref.watch(supabaseClientProvider);
+    final isAnonymous = client.auth.currentUser?.isAnonymous ?? false;
+    if (isAnonymous) return _GuestProfileView();
+
     final statsAsync = ref.watch(profileStatsProvider);
     final reportsAsync = ref.watch(profileReportsProvider);
     final nickname = ref.watch(nicknameProvider);
@@ -132,7 +137,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       });
     });
 
-    final client = ref.watch(supabaseClientProvider);
     final isAdmin = AdminConfig.adminUserIds.contains(client.auth.currentUser?.id);
     final adminPreview = isAdmin && ref.watch(adminBadgePreviewProvider);
 
@@ -1568,6 +1572,84 @@ class _BookmarkedSpotTile extends StatelessWidget {
 // ──────────────────────────────────────────────────────────────
 // My Map Entry Card
 // ──────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────
+// 게스트(익명) 사용자 프로필 플레이스홀더
+// ──────────────────────────────────────────────────────────────
+class _GuestProfileView extends ConsumerWidget {
+  const _GuestProfileView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      backgroundColor: isDark ? AppColors.darkBgBase : const Color(0xFFF8F6F1),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.person_outline_rounded,
+                  size: 72,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textSecondary,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  '로그인이 필요해요',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '로그인하면 측정 기록, 레벨, 뱃지를\n확인할 수 있어요.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.6,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      await ref.read(authRepositoryProvider).signOut();
+                      if (context.mounted) context.go('/onboarding');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.mintGreen,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    child: const Text('로그인하기'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MyMapEntryCard extends StatelessWidget {
   final int totalCafes;
   const _MyMapEntryCard({required this.totalCafes});

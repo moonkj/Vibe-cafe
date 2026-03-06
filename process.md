@@ -1,6 +1,6 @@
 # Cafe Vibe — 개발 진행 현황 (Process Log)
 
-마지막 업데이트: 2026-03-05 (Phase 37 완료 ✅ — iPad 랭킹 화면 수정, iPhone 전용(iPad 제외), 1.0.0+3 ASC 업로드 완료 / 다음: App Store 심사 제출, Android 지원은 심사 통과 후)
+마지막 업데이트: 2026-03-06 (Phase 38 완료 ✅ — App Store 리젝 수정 (Guideline 4: flutter_web_auth_2 인앱 구글로그인, Guideline 5.1.1v: 익명 게스트 접근), 1.0.0+4 ASC 업로드 완료 / 다음: 심사 재제출 대기)
 
 ---
 
@@ -40,7 +40,9 @@ Phase 32-33: App Store 준비   ████████████ 100% ✅ (A
 Phase 34: 법적문서·관리자 강화  ████████████ 100% ✅ (privacy-policy 재작성 ✅, 전체카페관리 ✅, 신규등록폼 ✅, 키보드버그 완전 수정 ✅)
 Phase 35: 보안/안정성/성능      ████████████ 100% ✅ (SQL 보안 강화 ✅, 마커 비트맵 캐시 전역화 ✅, 병렬 생성 ✅, 좌표 검증 ✅)
 Phase 36: 비카페 필터링·API     ████████████ 100% ✅ (계정삭제 RPC ✅, Places New API ✅, 비카페 필터 ✅, 관리자 이름수정 ✅, 더미스팟 사진 ✅)
-Phase 13: App Store 준비      ███████████░  95% 🔄 (GitHub Pages ✅, ASC 앱정보 ✅, 연령등급 4+ ✅, 데이터수집 등록 ✅, IPA 업로드 ✅, 심사제출 ⏳)
+Phase 37: iPad 제거·랭킹 수정  ████████████ 100% ✅ (BackdropFilter 제거, iPhone only, 1.0.0+3 ASC 업로드)
+Phase 38: App Store 리젝 수정  ████████████ 100% ✅ (Guideline 4: flutter_web_auth_2 ✅, Guideline 5.1.1v: 게스트 접근 ✅, Google OAuth 앱명 Cafe Vibe ✅, 1.0.0+4 ASC 업로드 ✅)
+Phase 13: App Store 준비      ████████████ 100% ✅ (GitHub Pages ✅, ASC 앱정보 ✅, 연령등급 4+ ✅, 데이터수집 등록 ✅, IPA 업로드 ✅, 심사 재제출 ⏳)
 아키텍처: 소셜로그인 필수화     ████████████ 100% ✅ (Apple/Google/Email ✅, SecureLocalStorage ✅, 닉네임 서비스 ✅)
 ```
 
@@ -74,6 +76,26 @@ Phase 13: App Store 준비      ███████████░  95% 🔄 (
 - [x] App Store Connect TestFlight 처리 중
 
 **다음 단계**: TestFlight 처리 완료 → 스크린샷 업로드 → 심사 제출
+
+---
+
+### Phase 38: App Store 리젝 수정 (2026-03-06)
+
+#### 리젝 사유
+- **Guideline 4**: 구글 로그인이 외부 브라우저(Safari)로 이동 → 인앱 브라우저 미사용
+- **Guideline 5.1.1(v)**: 로그인 없이 주변 카페 정보를 볼 수 없음
+
+#### 수정 내용
+- [x] 구글 로그인: `google_sign_in` idToken 방식 → `flutter_web_auth_2` + Supabase OAuth 코드 플로우 교체
+  - ASWebAuthenticationSession 사용 (Apple Guideline 4 준수)
+  - nonce 오류 완전 해결 (서버사이드 코드 교환 방식)
+- [x] 게스트 접근: "로그인 없이 둘러보기" 버튼 → 익명 로그인 → 지도/탐색/랭킹 자유 접근
+- [x] 익명 사용자 측정 시도 시 로그인 필요 다이얼로그 표시
+- [x] Google OAuth consent screen 앱 이름: "Noise Spot" → "Cafe Vibe" 변경
+- [x] Supabase 익명 로그인 활성화 (대시보드)
+- [x] v1.0.0+4 빌드 → objective_c.framework 수정 → ASC 업로드 **SUCCEEDED** (Delivery UUID: fc12b19b)
+
+**다음 단계**: App Store 심사 재제출 대기
 
 ---
 

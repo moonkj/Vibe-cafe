@@ -24,6 +24,7 @@ import 'widgets/db_meter_widget.dart';
 import 'widgets/privacy_notice_bar.dart';
 import 'widgets/sticker_card_grid.dart';
 import '../../../core/widgets/app_back_button.dart';
+import '../../auth/data/auth_repository.dart';
 
 class ReportScreen extends ConsumerStatefulWidget {
   final String? spotId;
@@ -59,6 +60,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
       text: widget.spotName.isNotEmpty ? widget.spotName : '내 스팟',
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = ref.read(supabaseClientProvider).auth.currentUser;
+      if (user?.isAnonymous ?? false) {
+        _showLoginRequired();
+        return;
+      }
       ref.read(reportControllerProvider.notifier).initialize(
             spotId: widget.spotId ?? '',
             spotName: _isNewSpot ? _nameController.text : widget.spotName,
@@ -67,6 +73,37 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
             googlePlaceId: widget.placeId,
           );
     });
+  }
+
+  void _showLoginRequired() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('로그인이 필요해요'),
+        content: const Text('측정 기능은 로그인 후 사용할 수 있어요.\n로그인 화면으로 이동할까요?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              context.pop();
+            },
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await ref.read(authRepositoryProvider).signOut();
+              if (mounted) context.go('/onboarding');
+            },
+            child: const Text(
+              '로그인하기',
+              style: TextStyle(color: AppColors.mintGreen, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

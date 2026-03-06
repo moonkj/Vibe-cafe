@@ -50,6 +50,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/splash',
     debugLogDiagnostics: false,
     refreshListenable: authNotifier,
+    // OAuth 콜백 URL 등 매핑 안 되는 경로: 에러 화면 대신 로딩 표시
+    // (Supabase app_links 리스너가 인증 코드를 처리하면 자동으로 /map으로 이동)
+    errorBuilder: (context, state) => const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
+    ),
     redirect: (context, state) {
       final initAsync = ref.read(supabaseInitProvider);
       if (!initAsync.hasValue) return null; // Supabase 초기화 대기
@@ -58,12 +63,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = session != null;
       final loc = state.matchedLocation;
       final isSplash    = loc == '/splash';
-      final isOnboarding = loc == '/onboarding';
-      final isEmailAuth  = loc == '/email-auth';
+      final isOnboarding   = loc == '/onboarding';
+      final isEmailAuth    = loc == '/email-auth';
+      final isLoginCallback = loc.startsWith('/login-callback');
 
       if (!isLoggedIn) {
         // 미로그인: 스플래시/일반 → 온보딩으로 즉시 이동
-        if (isSplash || (!isOnboarding && !isEmailAuth)) return '/onboarding';
+        // login-callback은 Supabase가 처리 중이므로 그대로 둠
+        if (isSplash || (!isOnboarding && !isEmailAuth && !isLoginCallback)) return '/onboarding';
         return null;
       }
 
@@ -96,6 +103,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/email-auth',
         name: 'email-auth',
         builder: (context, state) => const EmailAuthScreen(),
+      ),
+      // OAuth callback — Supabase processes the code via app_links listener.
+      // GoRouter just needs a matching route to avoid GoException.
+      GoRoute(
+        path: '/login-callback',
+        name: 'login-callback',
+        pageBuilder: (context, state) => const NoTransitionPage(
+          child: Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          ),
+        ),
       ),
       ShellRoute(
         builder: (context, state, child) => _MainShell(child: child),

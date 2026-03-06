@@ -69,6 +69,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     }
   }
 
+  Future<void> _onGuest() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).signInAnonymously();
+      // Router redirect handles navigation to /map
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = '시작에 실패했어요. 다시 시도해 주세요.';
+        });
+      }
+    }
+  }
+
   Future<void> _onGoogle() async {
     await ref.read(nicknameProvider.notifier).resetAllLive(); // clear stale nickname (SharedPreferences + in-memory state)
     setState(() {
@@ -249,6 +267,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                                 ),
                                 child: const Text('이메일로 계속하기'),
                               ),
+                            ),
+                            const SizedBox(height: 16),
+                            // Guest browse (no account needed)
+                            TextButton(
+                              onPressed: _onGuest,
+                              style: TextButton.styleFrom(
+                                foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                                textStyle: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                              child: const Text('로그인 없이 둘러보기'),
                             ),
                           ],
                         ),

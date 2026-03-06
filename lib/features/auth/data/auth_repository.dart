@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -42,13 +43,23 @@ class AuthRepository {
         .join();
   }
 
-  /// Sign in with Google via Supabase OAuth (browser redirect flow).
+  /// Sign in with Google via Supabase OAuth + ASWebAuthenticationSession.
+  /// Uses flutter_web_auth_2 to open the auth session in-app (Guideline 4 compliant).
+  /// Supabase handles the server-side code exchange — no nonce issue.
   Future<void> signInWithGoogle() async {
-    await _client.auth.signInWithOAuth(
-      OAuthProvider.google,
-      redirectTo: 'com.cafevibe.cafevibe://login-callback',
-      authScreenLaunchMode: LaunchMode.externalApplication,
+    const redirectTo = 'com.cafevibe.cafevibe://login-callback';
+
+    final oauthResponse = await _client.auth.getOAuthSignInUrl(
+      provider: OAuthProvider.google,
+      redirectTo: redirectTo,
     );
+
+    final result = await FlutterWebAuth2.authenticate(
+      url: oauthResponse.url.toString(),
+      callbackUrlScheme: 'com.cafevibe.cafevibe',
+    );
+
+    await _client.auth.getSessionFromUrl(Uri.parse(result));
   }
 
   /// Sign in with Kakao via Supabase OAuth (browser redirect flow).

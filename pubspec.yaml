@@ -1,7 +1,7 @@
 name: cafe_vibe
 description: "시끄러운 도시 속, 나만의 고요한 카페 찾기"
 publish_to: 'none'
-version: 1.0.0+3
+version: 1.0.0+4
 
 environment:
   sdk: ^3.11.0
@@ -60,6 +60,8 @@ dependencies:
 
   # Social Login
   sign_in_with_apple: ^6.1.0
+  google_sign_in: ^6.2.2
+  flutter_web_auth_2: ^4.0.0
   crypto: ^3.0.6
 
   # Utils
